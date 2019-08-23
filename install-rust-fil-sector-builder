@@ -13,6 +13,9 @@ if download_release_tarball tarball_path "${subm_dir}"; then
     tmp_dir=$(mktemp -d)
     tar -C "$tmp_dir" -xzf "$tarball_path"
 
+    mkdir -p ./bin
+
+    cp "${tmp_dir}/bin/paramfetch" ./bin/
     cp "${tmp_dir}/include/sector_builder_ffi.h" .
     cp "${tmp_dir}/lib/libsector_builder_ffi.a" .
     cp "${tmp_dir}/lib/pkgconfig/sector_builder_ffi.pc" .
@@ -26,4 +29,13 @@ else
     find "${subm_dir}" -type f -name sector_builder_ffi.h -exec cp -- "{}" . \;
     find "${subm_dir}" -type f -name libsector_builder_ffi.a -exec cp -- "{}" . \;
     find "${subm_dir}" -type f -name sector_builder_ffi.pc -exec cp -- "{}" . \;
+
+    # TODO https://github.com/filecoin-project/rust-fil-sector-builder/issues/39
+    FP_VERSION=$(cat ${subm_dir}/Cargo.lock | grep 'name = "filecoin-proofs"' -A1 | tail -n1 | cut -d' ' -f3 | tr -d '"')
+
+    pushd ${subm_dir}
+
+    cargo install --version $FP_VERSION filecoin-proofs --force --root .. --bin paramfetch || true
+
+    popd
 fi

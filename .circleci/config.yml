@@ -9,9 +9,9 @@ jobs:
     steps:
       - configure_environment_variables
       - run:
-          name: Install Rust toolchain
+          name: Install Rust toolchain and bc
           command: |
-            (sudo apt-get update && sudo apt-get install -y clang libssl-dev && which cargo && which rustc) || (curl https://sh.rustup.rs -sSf | sh -s -- -y)
+            (sudo apt-get update && sudo apt-get install -y bc clang libssl-dev && which cargo && which rustc) || (curl https://sh.rustup.rs -sSf | sh -s -- -y)
             rustc --version
       - run:
           name: Install jq

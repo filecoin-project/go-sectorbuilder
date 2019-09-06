@@ -10,7 +10,7 @@ set -o pipefail
 # with exponential backoff.
 # Invocation:
 #   err_retry exit_code attempts sleep_multiplier <command>
-# exit_code: The exit code to retry on.
+# exit_code: The exit code to retry on. If 'nzero', retry all non-zero exit codes.
 # attempts: The number of attempts to make.
 # sleep_millis: Multiplier for sleep between attempts. Examples:
 #     If multiplier is 1000, sleep intervals are 1, 4, 9, 16, etc. seconds.
@@ -25,7 +25,11 @@ for attempt in `seq 1 $attempts`; do
     # This weird construction lets us capture return codes under -o errexit
     "$@" && rc=$? || rc=$?
 
-    if [[ ! $rc -eq $exit_code ]]; then
+    if [[ "$exit_code" = "nzero" ]] ; then
+        if [[ $rc -eq 0 ]]; then
+            exit $rc
+        fi
+    elif [[ ! $rc -eq $exit_code ]]; then
         exit $rc
     fi
 

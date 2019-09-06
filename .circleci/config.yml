@@ -41,8 +41,10 @@ jobs:
             sudo installer -pkg /tmp/go.pkg -target /
             go version
       - run:
-          name: Install pkg-config
-          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install pkg-config
+          name: Install pkg-config and coreutils (for GNU timeout)
+          command: |
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install pkg-config coreutils
+            echo 'export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"' >> $BASH_ENV
       - run:
           name: Install Rust toolchain
           command: |
@@ -86,7 +88,7 @@ commands:
       - run:
           name: Fetch filecoin groth parameters
           command: |
-            ./scripts/retry.sh 1 10 1000 ./scripts/with-dots.sh ./bin/paramfetch --params-for-sector-sizes=1024 --verbose
+            ./scripts/retry.sh nzero 20 1000 ./scripts/with-dots.sh timeout 15m ./bin/paramfetch --params-for-sector-sizes=1024 --verbose
   update_submodules:
     steps:
       - run:

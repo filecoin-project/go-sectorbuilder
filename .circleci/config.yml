@@ -101,6 +101,11 @@ commands:
       - run:
           name: Build project dependencies
           command: make
+      - run:
+          name: Ensure paramfetch is on path, installing from GitHub if not
+          command: |
+            test -f ./paramfetch \
+              || cargo install filecoin-proofs --bin=paramcache --force --git=https://github.com/filecoin-project/rust-fil-proofs.git --branch=master
   lint_project:
     steps:
       - run:

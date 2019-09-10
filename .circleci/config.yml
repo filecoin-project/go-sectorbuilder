@@ -14,8 +14,10 @@ jobs:
       - update_submodules
       - build_project_dependencies
       - restore_parameter_cache
+      - restore_cargo_target_cache
       - obtain_filecoin_parameters
       - save_parameter_cache
+      - save_cargo_target_cache
       - lint_project
       - test_project
   build_and_test_darwin:
@@ -35,8 +37,10 @@ jobs:
       - update_submodules
       - build_project_dependencies
       - restore_parameter_cache
+      - restore_cargo_target_cache
       - obtain_filecoin_parameters
       - save_parameter_cache
+      - save_cargo_target_cache
       - lint_project
       - test_project
 
@@ -105,7 +109,7 @@ commands:
           name: Ensure paramfetch is on path, installing from GitHub if not
           command: |
             test -f ./paramfetch \
-              || cargo install filecoin-proofs --bin=paramcache --force --git=https://github.com/filecoin-project/rust-fil-proofs.git --branch=master
+              || CARGO_TARGET_DIR=/tmp/cargo-install cargo install filecoin-proofs --bin=paramcache --force --git=https://github.com/filecoin-project/rust-fil-proofs.git --branch=master
   lint_project:
     steps:
       - run:
@@ -121,6 +125,18 @@ commands:
       - run:
           name: create paramfetch checksum
           command: md5sum $(which paramfetch) | cut -d ' ' -f 1 >> paramfetch-checksum.txt
+  restore_cargo_target_cache:
+    steps:
+      - restore_cache:
+          key: v1-cargo-{{ arch }}
+          paths:
+            - /tmp/cargo-install
+  save_cargo_target_cache:
+    steps:
+      - restore_cache:
+          key: v1-cargo-{{ arch }}
+          paths:
+            - /tmp/cargo-install
   restore_parameter_cache:
     steps:
       - generate_paramfetch_checksum

@@ -111,6 +111,11 @@ commands:
       - run:
           name: Test project
           command: RUST_LOG=info go test
+  generate_paramfetch_checksum:
+    steps:
+      - run:
+          name: create paramfetch checksum
+          command: md5sum $(which paramfetch) | cut -d ' ' -f 1 >> paramfetch-checksum.txt
   restore_parameter_cache:
     steps:
       - generate_paramfetch_checksum

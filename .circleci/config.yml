@@ -52,7 +52,7 @@ commands:
       - run:
           name: Install go
           command: |
-            curl https://dl.google.com/go/go1.12.1.darwin-amd64.pkg -o /tmp/go.pkg && \
+            curl https://dl.google.com/go/go1.12.1.darwin-amd64.pkg -o /tmp/go.pkg
             sudo installer -pkg /tmp/go.pkg -target /
             go version
   install_go_linux:
@@ -60,8 +60,8 @@ commands:
       - run:
           name: Install go
           command: |
-            curl https://dl.google.com/go/go1.12.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
-            tar -C /usr/local -xzf /tmp/go.tar.gz \
+            curl https://dl.google.com/go/go1.12.linux-amd64.tar.gz -o /tmp/go.tar.gz
+            tar -C /usr/local -xzf /tmp/go.tar.gz
             go version
   configure_env:
     steps:
@@ -113,7 +113,7 @@ commands:
       - save_cache:
           key: v1b-proof-params-{{ checksum "paramfetch" }}
           paths:
-            - "~/filecoin-proof-parameters/"
+            - /tmp/filecoin-parameter-cache
   install_rust:
     steps:
       - run:

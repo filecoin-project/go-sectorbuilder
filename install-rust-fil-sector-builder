@@ -46,7 +46,7 @@ else
       --root ".."
 
     mv ../bin/paramcache paramcache
-    rm ../bin
+    rm -rf ../bin
 
     popd
 fi

@@ -71,8 +71,8 @@ commands:
             echo 'export CARGO_HOME=/tmp/cargo' >> $BASH_ENV
             echo 'export FILECOIN_PARAMETER_CACHE="/tmp/filecoin-parameter-cache"' >> $BASH_ENV
             echo 'export GO111MODULE=on' >> $BASH_ENV
-            echo 'export GOPATH="${HOME}/go"' >> $BASH_ENV
-            echo 'export PATH=${PATH}:/tmp/go/bin:${CARGO_HOME}/bin' >> $BASH_ENV
+            echo 'export GOPATH="/tmp/go"' >> $BASH_ENV
+            echo 'export PATH=${PATH}:/usr/local/go/bin:${CARGO_HOME}/bin' >> $BASH_ENV
             echo 'export RUST_BACKTRACE=1' >> $BASH_ENV
             echo 'export RUST_LOG=info' >> $BASH_ENV
             echo 'export RUSTUP_HOME=/tmp/rustup' >> $BASH_ENV

@@ -53,7 +53,7 @@ commands:
           name: Install go
           command: |
             curl https://dl.google.com/go/go1.12.1.darwin-amd64.pkg -o /tmp/go.pkg && \
-            sudo installer -pkg /tmp/go.pkg -target /
+            sudo installer -pkg /tmp/go.pkg -target /tmp
             go version
   install_go_linux:
     steps:

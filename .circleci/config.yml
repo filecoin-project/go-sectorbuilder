@@ -13,10 +13,10 @@ jobs:
       - checkout
       - update_submodules
       - build_project_dependencies
-      - lint_project
       - restore_parameter_cache
       - obtain_filecoin_parameters
       - save_parameter_cache
+      - lint_project
       - test_project
   build_and_test_darwin:
     macos:
@@ -34,10 +34,10 @@ jobs:
       - checkout
       - update_submodules
       - build_project_dependencies
-      - lint_project
       - restore_parameter_cache
       - obtain_filecoin_parameters
       - save_parameter_cache
+      - lint_project
       - test_project
 
 workflows:
@@ -113,13 +113,16 @@ commands:
           command: RUST_LOG=info go test
   restore_parameter_cache:
     steps:
+      - generate_paramfetch_checksum
       - restore_cache:
-          keys:
-            - v1b-proof-params-{{ checksum "paramfetch" }}
+          key: v1b-proof-params-{{ checksum "paramfetch-checksum.txt" }}
+          paths:
+            - /tmp/filecoin-parameter-cache
   save_parameter_cache:
     steps:
+      - generate_paramfetch_checksum
       - save_cache:
-          key: v1b-proof-params-{{ checksum "paramfetch" }}
+          key: v1b-proof-params-{{ checksum "paramfetch-checksum.txt" }}
           paths:
             - /tmp/filecoin-parameter-cache
   install_rust:

@@ -90,7 +90,7 @@ commands:
       - run:
           name: Generate Groth parameters and verifying keys for 1KiB sectors
           command: |
-            paramcache --test-only
+            ./paramcache --test-only
   update_submodules:
     steps:
       - run:

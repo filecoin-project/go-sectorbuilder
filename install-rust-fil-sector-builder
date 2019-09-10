@@ -30,6 +30,4 @@ else
     find "${subm_dir}" -type f -name sector_builder_ffi.pc -exec cp -- "{}" . \;
 
     (>&2 echo "WARNING: paramcache was not installed - you may wish to 'cargo install' it")
-
-    popd
 fi

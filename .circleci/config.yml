@@ -25,8 +25,8 @@ jobs:
     resource_class: medium
     steps:
       - run:
-          name: Install pkg-config
-          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install pkg-config
+          name: Install pkg-config and md5sum
+          command: HOMEBREW_NO_AUTO_UPDATE=1 brew install pkg-config md5sha1sum
       - configure_env
       - install_rust
       - install_go_darwin

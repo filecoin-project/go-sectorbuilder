@@ -10,6 +10,7 @@ jobs:
       - configure_env
       - install_rust
       - install_go_linux
+      - install_jq_linux
       - checkout
       - update_submodules
       - build_project_dependencies
@@ -30,6 +31,7 @@ jobs:
       - configure_env
       - install_rust
       - install_go_darwin
+      - install_jq_darwin
       - checkout
       - update_submodules
       - build_project_dependencies
@@ -47,6 +49,21 @@ workflows:
       - build_and_test_darwin
 
 commands:
+  install_jq_darwin:
+    steps:
+      - run:
+          name: Install jq
+          command: |
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install jq
+            jq --version
+  install_jq_linux:
+    steps:
+      - run:
+          name: Install jq
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y jq
+            jq --version
   install_go_darwin:
     steps:
       - run:

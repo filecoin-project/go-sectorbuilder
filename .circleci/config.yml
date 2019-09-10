@@ -21,10 +21,10 @@ jobs:
             jq --version
       - checkout
       - update_submodules
-      - build_project
+      - build_project_dependencies
       - lint_project
       - restore_parameter_cache
-      - fetch_filecoin_parameters
+      - obtain_filecoin_parameters
       - save_parameter_cache
       - test_project
   build_and_test_darwin:
@@ -55,10 +55,10 @@ jobs:
             jq --version
       - checkout
       - update_submodules
-      - build_project
+      - build_project_dependencies
       - lint_project
       - restore_parameter_cache
-      - fetch_filecoin_parameters
+      - obtain_filecoin_parameters
       - save_parameter_cache
       - test_project
 
@@ -81,21 +81,21 @@ commands:
             echo 'export GOPATH="${HOME}/go"' >> $BASH_ENV
             echo 'export FILECOIN_PARAMETER_CACHE="${HOME}/filecoin-proof-parameters/"' >> $BASH_ENV
             echo 'export GO111MODULE=on' >> $BASH_ENV
-  fetch_filecoin_parameters:
+  obtain_filecoin_parameters:
     steps:
       - run:
-          name: Fetch filecoin groth parameters
+          name: Generate Groth parameters and verifying keys for 1KiB sectors
           command: |
-            ./scripts/retry.sh 1 10 1000 ./scripts/with-dots.sh ./bin/paramfetch --params-for-sector-sizes=1024 --verbose
+            paramcache --test-only
   update_submodules:
     steps:
       - run:
           name: Update submodules
           command: git submodule update --init --recursive
-  build_project:
+  build_project_dependencies:
     steps:
       - run:
-          name: Build project
+          name: Build project dependencies
           command: make
   lint_project:
     steps:
@@ -111,10 +111,10 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - v1-proof-params-{{ checksum "./bin/paramfetch" }}
+            - v1b-proof-params-{{ checksum "paramfetch" }}
   save_parameter_cache:
     steps:
       - save_cache:
-          key: v1-proof-params-{{ checksum "./bin/paramfetch" }}
+          key: v1b-proof-params-{{ checksum "paramfetch" }}
           paths:
             - "~/filecoin-proof-parameters/"

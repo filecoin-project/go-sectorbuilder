@@ -53,7 +53,7 @@ commands:
           name: Install go
           command: |
             curl https://dl.google.com/go/go1.12.1.darwin-amd64.pkg -o /tmp/go.pkg && \
-            sudo installer -pkg /tmp/go.pkg -target /tmp
+            sudo installer -pkg /tmp/go.pkg -target /
             go version
   install_go_linux:
     steps:
@@ -61,7 +61,7 @@ commands:
           name: Install go
           command: |
             curl https://dl.google.com/go/go1.12.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
-            tar -C /tmp -xzf /tmp/go.tar.gz \
+            tar -C /usr/local -xzf /tmp/go.tar.gz \
             go version
   configure_env:
     steps:
@@ -71,7 +71,7 @@ commands:
             echo 'export CARGO_HOME=/tmp/cargo' >> $BASH_ENV
             echo 'export FILECOIN_PARAMETER_CACHE="/tmp/filecoin-parameter-cache"' >> $BASH_ENV
             echo 'export GO111MODULE=on' >> $BASH_ENV
-            echo 'export GOPATH="/tmp/go"' >> $BASH_ENV
+            echo 'export GOPATH="${HOME}/go"' >> $BASH_ENV
             echo 'export PATH=${PATH}:/tmp/go/bin:${CARGO_HOME}/bin' >> $BASH_ENV
             echo 'export RUST_BACKTRACE=1' >> $BASH_ENV
             echo 'export RUST_LOG=info' >> $BASH_ENV

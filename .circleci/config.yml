@@ -13,6 +13,7 @@ jobs:
       - checkout
       - update_submodules
       - build_project_dependencies
+      - generate_paramfetch_checksum
       - restore_parameter_cache
       - restore_cargo_target_cache
       - obtain_filecoin_parameters
@@ -36,6 +37,7 @@ jobs:
       - checkout
       - update_submodules
       - build_project_dependencies
+      - generate_paramfetch_checksum
       - restore_parameter_cache
       - restore_cargo_target_cache
       - obtain_filecoin_parameters
@@ -134,20 +136,18 @@ commands:
             - /tmp/cargo-install
   save_cargo_target_cache:
     steps:
-      - restore_cache:
+      - save_cache:
           key: v1-cargo-{{ arch }}
           paths:
             - /tmp/cargo-install
   restore_parameter_cache:
     steps:
-      - generate_paramfetch_checksum
       - restore_cache:
           key: v1b-proof-params-{{ checksum "paramfetch-checksum.txt" }}
           paths:
             - /tmp/filecoin-parameter-cache
   save_parameter_cache:
     steps:
-      - generate_paramfetch_checksum
       - save_cache:
           key: v1b-proof-params-{{ checksum "paramfetch-checksum.txt" }}
           paths:

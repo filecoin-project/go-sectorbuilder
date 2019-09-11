@@ -143,13 +143,13 @@ commands:
   restore_parameter_cache:
     steps:
       - restore_cache:
-          key: v1b-proof-params-{{ checksum "paramfetch-checksum.txt" }}
+          key: v1c-proof-params-{{ checksum "paramfetch-checksum.txt" }}
           paths:
             - /tmp/filecoin-parameter-cache
   save_parameter_cache:
     steps:
       - save_cache:
-          key: v1b-proof-params-{{ checksum "paramfetch-checksum.txt" }}
+          key: v1c-proof-params-{{ checksum "paramfetch-checksum.txt" }}
           paths:
             - /tmp/filecoin-parameter-cache
   install_rust:

@@ -1,8 +1,13 @@
 package go_sectorbuilder
 
 import (
+<<<<<<< HEAD
 	"bytes"
 	"sort"
+=======
+	"os"
+	"runtime"
+>>>>>>> fet: use filedescriptors for add_piece and generate_piece_commitment
 	"time"
 	"unsafe"
 
@@ -284,15 +289,14 @@ func AddPiece(
 	sectorBuilderPtr unsafe.Pointer,
 	pieceKey string,
 	pieceSize uint64,
-	piecePath string,
+	pieceFile os.File,
 ) (sectorID uint64, retErr error) {
 	defer elapsed("AddPiece")()
 
 	cPieceKey := C.CString(pieceKey)
 	defer C.free(unsafe.Pointer(cPieceKey))
 
-	cPiecePath := C.CString(piecePath)
-	defer C.free(unsafe.Pointer(cPiecePath))
+	pieceFd := pieceFile.Fd()
 
 	// TODO: The UTC time, in seconds, at which the sector builder can safely
 	// delete the piece. This allows for co-location of pieces with similar time
@@ -307,11 +311,14 @@ func AddPiece(
 	resPtr := C.sector_builder_ffi_add_piece(
 		(*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr),
 		cPieceKey,
-		C.uint64_t(pieceSize),
-		cPiecePath,
+		C.uintptr(pieceFd),
+		C.uint64_t(pieceBytes),
 		C.uint64_t(pieceExpiryUtcSeconds),
 	)
 	defer C.sector_builder_ffi_destroy_add_piece_response(resPtr)
+
+	// Make sure our filedescriptor stays alive, stayin alive
+	runtime.KeepAlive(pieceFd)
 
 	if resPtr.status_code != 0 {
 		return 0, errors.New(C.GoString(resPtr.error_msg))
@@ -529,11 +536,10 @@ func VerifyPieceInclusionProof(sectorSize uint64, pieceSize uint64, commP [Commi
 
 // GeneratePieceCommitment produces a piece commitment for the provided data
 // stored at a given piece path.
-func GeneratePieceCommitment(piecePath string, pieceSize uint64) (commP [CommitmentBytesLen]byte, err error) {
-	cPiecePath := C.CString(piecePath)
-	defer C.free(unsafe.Pointer(cPiecePath))
+func GeneratePieceCommitment(pieceFile os.File, pieceSize uint64) (commP [CommitmentBytesLen]byte, err error) {
+	pieceFd := pieceFile.Fd()
 
-	resPtr := C.sector_builder_ffi_generate_piece_commitment(cPiecePath, C.uint64_t(pieceSize))
+	resPtr := C.sector_builder_ffi_generate_piece_commitment(C.uintptr(pieceFd), C.uint64_t(pieceSize))
 	defer C.sector_builder_ffi_destroy_generate_piece_commitment_response(resPtr)
 
 	if resPtr.status_code != 0 {
@@ -543,6 +549,9 @@ func GeneratePieceCommitment(piecePath string, pieceSize uint64) (commP [Commitm
 	commPSlice := goBytes(&resPtr.comm_p[0], CommitmentBytesLen)
 	var commitment [CommitmentBytesLen]byte
 	copy(commitment[:], commPSlice)
+
+	// Make sure our filedescriptor stays alive, stayin alive
+	runtime.KeepAlive(pieceFd)
 
 	return commitment, nil
 }

@@ -46,15 +46,15 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	pieceBytes := make([]byte, maxPieceSize)
 	_, err = io.ReadFull(rand.Reader, pieceBytes)
 	require.NoError(t, err)
-	piecePath := requireTempFilePath(t, bytes.NewReader(pieceBytes))
+	pieceFile := requireTempFile(t, bytes.NewReader(pieceBytes))
 
 	// generate piece commitment
-	commP, err := sb.GeneratePieceCommitment(piecePath, maxPieceSize)
+	commP, err := sb.GeneratePieceCommitment(pieceFile, maxPieceSize)
 	require.NoError(t, err)
 
 	// write a piece to a staged sector, reducing remaining space to 0 and
 	// triggering the seal job
-	sectorID, err := sb.AddPiece(ptr, "snoqualmie", maxPieceSize, piecePath)
+	sectorID, err := sb.AddPiece(ptr, "snoqualmie", maxPieceSize, pieceFile)
 	require.NoError(t, err)
 
 	stagedSectors, err := sb.GetAllStagedSectors(ptr)
@@ -137,14 +137,14 @@ func pollForSectorSealingStatus(ptr unsafe.Pointer, sectorID uint64, targetState
 	}
 }
 
-func requireTempFilePath(t *testing.T, fileContentsReader io.Reader) string {
+func requireTempFile(t *testing.T, fileContentsReader io.Reader) os.File {
 	file, err := ioutil.TempFile("", "")
 	require.NoError(t, err)
 
 	_, err = io.Copy(file, fileContentsReader)
 	require.NoError(t, err)
 
-	return file.Name()
+	file
 }
 
 func requireTempDirPath(t *testing.T) string {

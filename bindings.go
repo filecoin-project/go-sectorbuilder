@@ -1,13 +1,10 @@
 package go_sectorbuilder
 
 import (
-<<<<<<< HEAD
 	"bytes"
-	"sort"
-=======
 	"os"
 	"runtime"
->>>>>>> fet: use filedescriptors for add_piece and generate_piece_commitment
+	"sort"
 	"time"
 	"unsafe"
 

@@ -1,7 +1,6 @@
 package go_sectorbuilder_test
 
 import (
-	"fmt"
 	"bytes"
 	"crypto/rand"
 	"errors"
@@ -55,9 +54,6 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	commP, err := sb.GeneratePieceCommitmentFromFile(pieceFile, maxPieceSize)
 	require.NoError(t, err)
 
-	info, err := pieceFile.Stat()
-	require.NoError(t, err)
-	fmt.Printf("info %v\n", info)
 	// seek to the beginning
 	_, err = pieceFile.Seek(0, 0)
 	require.NoError(t, err)

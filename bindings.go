@@ -280,14 +280,14 @@ func DestroySectorBuilder(sectorBuilderPtr unsafe.Pointer) {
 	C.sector_builder_ffi_destroy_sector_builder((*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr))
 }
 
-// AddPieceFromPath writes the given piece into an unsealed sector and returns the id of that sector.
-func AddPieceFromPath(
+// AddPiece writes the given piece into an unsealed sector and returns the id of that sector.
+func AddPiece(
 	sectorBuilderPtr unsafe.Pointer,
 	pieceKey string,
 	pieceBytes uint64,
 	piecePath string,
 ) (uint64, error) {
-	defer elapsed("AddPieceFromPath")()
+	defer elapsed("AddPiece")()
 
 	pieceFile, err := os.Open(piecePath)
 	if err != nil {
@@ -547,9 +547,9 @@ func VerifyPieceInclusionProof(sectorSize uint64, pieceSize uint64, commP [Commi
 	return bool(resPtr.is_valid), nil
 }
 
-// GeneratePieceCommitmentFromPath produces a piece commitment for the provided data
+// GeneratePieceCommitment produces a piece commitment for the provided data
 // stored at a given path.
-func GeneratePieceCommitmentFromPath(piecePath string, pieceSize uint64) ([CommitmentBytesLen]byte, error) {
+func GeneratePieceCommitment(piecePath string, pieceSize uint64) ([CommitmentBytesLen]byte, error) {
 	pieceFile, err := os.Open(piecePath)
 	if err != nil {
 		return [CommitmentBytesLen]byte{}, err

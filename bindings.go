@@ -280,15 +280,31 @@ func DestroySectorBuilder(sectorBuilderPtr unsafe.Pointer) {
 	C.sector_builder_ffi_destroy_sector_builder((*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr))
 }
 
-// AddPiece writes the given piece into an unsealed sector and returns the id
-// of that sector.
-func AddPiece(
+// AddPieceFromPath writes the given piece into an unsealed sector and returns the id of that sector.
+func AddPieceFromPath(
 	sectorBuilderPtr unsafe.Pointer,
 	pieceKey string,
-	pieceSize uint64,
-	pieceFile os.File,
+	pieceBytes uint64,
+	piecePath string,
+) (uint64, error) {
+	defer elapsed("AddPieceFromPath")()
+
+	pieceFile, err := os.Open(piecePath)
+	if err != nil {
+		return 0, err
+	}
+
+	return AddPieceFromFile(sectorBuilderPtr, pieceKey, pieceBytes, pieceFile)
+}
+
+// AddPieceFromFile writes the given piece into an unsealed sector and returns the id of that sector.
+func AddPieceFromFile(
+	sectorBuilderPtr unsafe.Pointer,
+	pieceKey string,
+	pieceBytes uint64,
+	pieceFile *os.File,
 ) (sectorID uint64, retErr error) {
-	defer elapsed("AddPiece")()
+	defer elapsed("AddPieceFromFile")()
 
 	cPieceKey := C.CString(pieceKey)
 	defer C.free(unsafe.Pointer(cPieceKey))
@@ -308,14 +324,14 @@ func AddPiece(
 	resPtr := C.sector_builder_ffi_add_piece(
 		(*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr),
 		cPieceKey,
-		C.uintptr(pieceFd),
+		unsafe.Pointer(pieceFd),
 		C.uint64_t(pieceBytes),
 		C.uint64_t(pieceExpiryUtcSeconds),
 	)
 	defer C.sector_builder_ffi_destroy_add_piece_response(resPtr)
 
 	// Make sure our filedescriptor stays alive, stayin alive
-	runtime.KeepAlive(pieceFd)
+	runtime.KeepAlive(pieceFile)
 
 	if resPtr.status_code != 0 {
 		return 0, errors.New(C.GoString(resPtr.error_msg))
@@ -531,13 +547,27 @@ func VerifyPieceInclusionProof(sectorSize uint64, pieceSize uint64, commP [Commi
 	return bool(resPtr.is_valid), nil
 }
 
-// GeneratePieceCommitment produces a piece commitment for the provided data
-// stored at a given piece path.
-func GeneratePieceCommitment(pieceFile os.File, pieceSize uint64) (commP [CommitmentBytesLen]byte, err error) {
+// GeneratePieceCommitmentFromPath produces a piece commitment for the provided data
+// stored at a given path.
+func GeneratePieceCommitmentFromPath(piecePath string, pieceSize uint64) ([CommitmentBytesLen]byte, error) {
+	pieceFile, err := os.Open(piecePath)
+	if err != nil {
+		return [CommitmentBytesLen]byte{}, err
+	}
+
+	return GeneratePieceCommitmentFromFile(pieceFile, pieceSize)
+}
+
+// GeneratePieceCommitmentFromFile produces a piece commitment for the provided data
+// stored in a given file.
+func GeneratePieceCommitmentFromFile(pieceFile *os.File, pieceSize uint64) (commP [CommitmentBytesLen]byte, err error) {
 	pieceFd := pieceFile.Fd()
 
-	resPtr := C.sector_builder_ffi_generate_piece_commitment(C.uintptr(pieceFd), C.uint64_t(pieceSize))
+	resPtr := C.sector_builder_ffi_generate_piece_commitment(unsafe.Pointer(pieceFd), C.uint64_t(pieceSize))
 	defer C.sector_builder_ffi_destroy_generate_piece_commitment_response(resPtr)
+
+	// Make sure our filedescriptor stays alive, stayin alive
+	runtime.KeepAlive(pieceFile)
 
 	if resPtr.status_code != 0 {
 		return [CommitmentBytesLen]byte{}, errors.New(C.GoString(resPtr.error_msg))
@@ -546,9 +576,6 @@ func GeneratePieceCommitment(pieceFile os.File, pieceSize uint64) (commP [Commit
 	commPSlice := goBytes(&resPtr.comm_p[0], CommitmentBytesLen)
 	var commitment [CommitmentBytesLen]byte
 	copy(commitment[:], commPSlice)
-
-	// Make sure our filedescriptor stays alive, stayin alive
-	runtime.KeepAlive(pieceFd)
 
 	return commitment, nil
 }

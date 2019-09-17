@@ -1,6 +1,7 @@
 package go_sectorbuilder_test
 
 import (
+	"fmt"
 	"bytes"
 	"crypto/rand"
 	"errors"
@@ -44,17 +45,26 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	// create a piece which consumes all available space in a new, staged
 	// sector
 	pieceBytes := make([]byte, maxPieceSize)
-	_, err = io.ReadFull(rand.Reader, pieceBytes)
+	read, err := io.ReadFull(rand.Reader, pieceBytes)
+	require.Equal(t, uint64(read), maxPieceSize)
+
 	require.NoError(t, err)
-	pieceFile := requireTempFile(t, bytes.NewReader(pieceBytes))
+	pieceFile := requireTempFile(t, bytes.NewReader(pieceBytes), maxPieceSize)
 
 	// generate piece commitment
-	commP, err := sb.GeneratePieceCommitment(pieceFile, maxPieceSize)
+	commP, err := sb.GeneratePieceCommitmentFromFile(pieceFile, maxPieceSize)
+	require.NoError(t, err)
+
+	info, err := pieceFile.Stat()
+	require.NoError(t, err)
+	fmt.Printf("info %v\n", info)
+	// seek to the beginning
+	_, err = pieceFile.Seek(0, 0)
 	require.NoError(t, err)
 
 	// write a piece to a staged sector, reducing remaining space to 0 and
 	// triggering the seal job
-	sectorID, err := sb.AddPiece(ptr, "snoqualmie", maxPieceSize, pieceFile)
+	sectorID, err := sb.AddPieceFromFile(ptr, "snoqualmie", maxPieceSize, pieceFile)
 	require.NoError(t, err)
 
 	stagedSectors, err := sb.GetAllStagedSectors(ptr)
@@ -137,14 +147,22 @@ func pollForSectorSealingStatus(ptr unsafe.Pointer, sectorID uint64, targetState
 	}
 }
 
-func requireTempFile(t *testing.T, fileContentsReader io.Reader) os.File {
+func requireTempFile(t *testing.T, fileContentsReader io.Reader, size uint64) *os.File {
 	file, err := ioutil.TempFile("", "")
 	require.NoError(t, err)
 
-	_, err = io.Copy(file, fileContentsReader)
+	written, err := io.Copy(file, fileContentsReader)
+	require.NoError(t, err)
+	// check that we wrote everything
+	require.Equal(t, uint64(written), size)
+
+	require.NoError(t, file.Sync())
+
+	// seek to the beginning
+	_, err = file.Seek(0, 0)
 	require.NoError(t, err)
 
-	file
+	return file
 }
 
 func requireTempDirPath(t *testing.T) string {

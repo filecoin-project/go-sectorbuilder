@@ -324,7 +324,7 @@ func AddPieceFromFile(
 	resPtr := C.sector_builder_ffi_add_piece(
 		(*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr),
 		cPieceKey,
-		unsafe.Pointer(pieceFd),
+		C.int(pieceFd),
 		C.uint64_t(pieceBytes),
 		C.uint64_t(pieceExpiryUtcSeconds),
 	)
@@ -563,7 +563,7 @@ func GeneratePieceCommitment(piecePath string, pieceSize uint64) ([CommitmentByt
 func GeneratePieceCommitmentFromFile(pieceFile *os.File, pieceSize uint64) (commP [CommitmentBytesLen]byte, err error) {
 	pieceFd := pieceFile.Fd()
 
-	resPtr := C.sector_builder_ffi_generate_piece_commitment(unsafe.Pointer(pieceFd), C.uint64_t(pieceSize))
+	resPtr := C.sector_builder_ffi_generate_piece_commitment(C.int(pieceFd), C.uint64_t(pieceSize))
 	defer C.sector_builder_ffi_destroy_generate_piece_commitment_response(resPtr)
 
 	// Make sure our filedescriptor stays alive, stayin alive

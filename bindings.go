@@ -1,7 +1,6 @@
 package go_sectorbuilder
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"runtime"
@@ -39,7 +38,7 @@ type SortedSectorInfo struct {
 // NewSortedSectorInfo returns a SortedSectorInfo
 func NewSortedSectorInfo(sectorInfo ...SectorInfo) SortedSectorInfo {
 	fn := func(i, j int) bool {
-		return bytes.Compare(sectorInfo[i].CommR[:], sectorInfo[j].CommR[:]) == -1
+		return sectorInfo[i].SectorID < sectorInfo[j].SectorID
 	}
 
 	sort.Slice(sectorInfo[:], fn)

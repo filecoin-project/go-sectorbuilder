@@ -1,5 +1,7 @@
 package sealing_state
 
+//go:generate stringer -type=State
+
 // State communicates the state of the sector with respect to sealing.
 type State int
 
@@ -12,17 +14,3 @@ const (
 	Paused                // sector sealing has been paused and can be resumed
 	ReadyForSealing       // staged sector is full and is ready to seal
 )
-
-var labels = [...]string{
-	"Unknown",
-	"Pending",
-	"Failed",
-	"Sealing",
-	"Sealed",
-	"Paused",
-	"ReadyForSealing",
-}
-
-func (el State) String() string {
-	return labels[el]
-}

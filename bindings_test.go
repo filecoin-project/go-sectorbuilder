@@ -232,7 +232,7 @@ func pollForSectorSealingStatus(ptr unsafe.Pointer, sectorID uint64, targetState
 	for {
 		select {
 		case <-timeoutCh:
-			retErr = errors.New(fmt.Sprintf("timed out waiting for sector hit desired state (last state: %s)", lastState))
+			retErr = fmt.Errorf("timed out waiting for sector hit desired state (last state: %s)", lastState)
 			return
 		case <-tick:
 			sealingStatus, err := sb.GetSectorSealingStatusByID(ptr, sectorID)

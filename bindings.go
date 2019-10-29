@@ -299,6 +299,7 @@ func InitSectorBuilder(
 	stagedSectorDir string,
 	sectorCacheRootDir string,
 	maxNumOpenStagedSectors uint8,
+	numWorkerThreads uint8,
 ) (unsafe.Pointer, error) {
 	defer elapsed("InitSectorBuilder")()
 
@@ -331,6 +332,7 @@ func InitSectorBuilder(
 		cStagedSectorDir,
 		cSectorCacheRootDir,
 		C.uint8_t(maxNumOpenStagedSectors),
+		C.uint8_t(numWorkerThreads),
 	)
 	defer C.sector_builder_ffi_destroy_init_sector_builder_response(resPtr)
 

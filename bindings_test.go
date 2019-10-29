@@ -55,7 +55,7 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	sectorCacheRootDir := requireTempDirPath(t)
 	defer require.NoError(t, os.Remove(sectorCacheRootDir))
 
-	ptr, err := sb.InitSectorBuilder(1024, 2, 0, metadataDir, proverID, sealedSectorDir, stagedSectorDir, sectorCacheRootDir, 1)
+	ptr, err := sb.InitSectorBuilder(1024, 2, 0, metadataDir, proverID, sealedSectorDir, stagedSectorDir, sectorCacheRootDir, 1, 2)
 	require.NoError(t, err)
 	defer sb.DestroySectorBuilder(ptr)
 

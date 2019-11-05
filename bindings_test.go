@@ -201,6 +201,100 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	require.Equal(t, pieceBytes, unsealedPieceBytes)
 }
 
+func TestStandaloneSealing(t *testing.T) {
+	sectorSize := uint64(1024)
+	poRepProofPartitions := uint8(2)
+	sectorID := uint64(500)
+	ticketBytes := [32]byte{5, 4, 2}
+	seedBytes := [32]byte{7, 4, 2}
+	proverID := [32]byte{6, 7, 8}
+
+	cacheDirPath := requireTempDirPath(t)
+	defer os.Remove(cacheDirPath)
+
+	stagedSectorFile := requireTempFile(t, bytes.NewReader([]byte{}), 0)
+	defer stagedSectorFile.Close()
+
+	sealedSectorFile := requireTempFile(t, bytes.NewReader([]byte{}), 0)
+	defer sealedSectorFile.Close()
+
+	unsealOutputFile := requireTempFile(t, bytes.NewReader([]byte{}), 0)
+	defer unsealOutputFile.Close()
+
+	// some rando bytes
+	someBytes := make([]byte, 1016)
+	_, err := io.ReadFull(rand.Reader, someBytes)
+	require.NoError(t, err)
+
+	// write first piece
+	require.NoError(t, err)
+	pieceFileA := requireTempFile(t, bytes.NewReader(someBytes[0:127]), 127)
+
+	commPA, err := sb.GeneratePieceCommitmentFromFile(pieceFileA, 127)
+	require.NoError(t, err)
+
+	// seek back to head (generating piece commitment moves offset)
+	_, err = pieceFileA.Seek(0, 0)
+	require.NoError(t, err)
+
+	// write the first piece using the alignment-free function
+	n, commP, err := sb.StandaloneWriteWithoutAlignment(pieceFileA, 127, stagedSectorFile)
+	require.NoError(t, err)
+	require.Equal(t, int(n), 127)
+	require.Equal(t, commP, commPA)
+
+	// write second piece + alignment
+	require.NoError(t, err)
+	pieceFileB := requireTempFile(t, bytes.NewReader(someBytes[0:508]), 508)
+
+	commPB, err := sb.GeneratePieceCommitmentFromFile(pieceFileB, 508)
+	require.NoError(t, err)
+
+	// seek back to head
+	_, err = pieceFileB.Seek(0, 0)
+	require.NoError(t, err)
+
+	// second piece relies on the alignment-computing version
+	left, tot, commP, err := sb.StandaloneWriteWithAlignment(pieceFileB, 508, stagedSectorFile, []uint64{127})
+	require.NoError(t, err)
+	require.Equal(t, int(left), 381)
+	require.Equal(t, int(tot), 889)
+	require.Equal(t, commP, commPB)
+
+	pieces := []sb.PublicPieceInfo{{
+		Size:  127,
+		CommP: commPA,
+	}, {
+		Size:  508,
+		CommP: commPB,
+	}}
+
+	// pre-commit the sector
+	output, err := sb.StandaloneSealPreCommit(sectorSize, poRepProofPartitions, cacheDirPath, stagedSectorFile.Name(), sealedSectorFile.Name(), sectorID, proverID, ticketBytes, pieces)
+	require.NoError(t, err)
+
+	// commit the sector
+	proof, err := sb.StandaloneSealCommit(sectorSize, poRepProofPartitions, cacheDirPath, sectorID, proverID, ticketBytes, seedBytes, pieces, output)
+	require.NoError(t, err)
+
+	// verify the 'ole proofy
+	isValid, err := sb.VerifySeal(sectorSize, output.CommR, output.CommD, proverID, ticketBytes, seedBytes, sectorID, proof)
+	require.NoError(t, err)
+	require.True(t, isValid, "proof wasn't valid")
+
+	// unseal and verify that things went as we planned
+	require.NoError(t, sb.StandaloneUnseal(sectorSize, poRepProofPartitions, sealedSectorFile.Name(), unsealOutputFile.Name(), sectorID, proverID, ticketBytes, output.CommD))
+	contents, err := ioutil.ReadFile(unsealOutputFile.Name())
+	require.NoError(t, err)
+
+	// unsealed sector includes a bunch of alignment NUL-bytes
+	alignment := make([]byte, 381)
+
+	require.Equal(t, someBytes[0:127], contents[0:127])
+	require.Equal(t, alignment, contents[127:508])
+	require.Equal(t, someBytes[0:508], contents[508:1016])
+}
+
 func TestJsonMarshalSymmetry(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		xs := make([]sb.SectorInfo, 10)
@@ -265,7 +359,7 @@ func requireTempFile(t *testing.T, fileContentsReader io.Reader, size uint64) *o
 	written, err := io.Copy(file, fileContentsReader)
 	require.NoError(t, err)
 	// check that we wrote everything
-	require.Equal(t, uint64(written), size)
+	require.Equal(t, int(size), int(written))
 
 	require.NoError(t, file.Sync())
 

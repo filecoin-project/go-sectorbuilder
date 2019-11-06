@@ -36,6 +36,25 @@ func cPublicPieceInfo(src []PublicPieceInfo) (*C.sector_builder_ffi_FFIPublicPie
 	return (*C.sector_builder_ffi_FFIPublicPieceInfo)(cPublicPieceInfos), srcCSizeT
 }
 
+func cPieceMetadata(src []PieceMetadata) (*C.sector_builder_ffi_FFIPieceMetadata, C.size_t) {
+	srcCSizeT := C.size_t(len(src))
+
+	// allocate array in C heap
+	cPieceMetadata := C.malloc(srcCSizeT * C.sizeof_sector_builder_ffi_FFIPieceMetadata)
+
+	// create a Go slice backed by the C-array
+	xs := (*[1 << 30]C.sector_builder_ffi_FFIPieceMetadata)(cPieceMetadata)
+	for i, v := range src {
+		xs[i] = C.sector_builder_ffi_FFIPieceMetadata{
+			piece_key: C.CString(v.Key),
+			num_bytes: C.uint64_t(v.Size),
+			comm_p:    *(*[32]C.uint8_t)(unsafe.Pointer(&v.CommP)),
+		}
+	}
+
+	return (*C.sector_builder_ffi_FFIPieceMetadata)(cPieceMetadata), srcCSizeT
+}
+
 func cUint64s(src []uint64) (*C.uint64_t, C.size_t) {
 	srcCSizeT := C.size_t(len(src))
 

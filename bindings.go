@@ -683,6 +683,104 @@ func GeneratePoSt(
 	return goBytes(resPtr.proof_ptr, resPtr.proof_len), nil
 }
 
+// AcquireSectorId returns a sector ID which can be used by out-of-band sealing.
+func AcquireSectorId(
+	sectorBuilderPtr unsafe.Pointer,
+) (uint64, error) {
+	defer elapsed("AcquireSectorId")()
+
+	resPtr := C.sector_builder_ffi_acquire_sector_id(
+		(*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr),
+	)
+	defer C.sector_builder_ffi_destroy_acquire_sector_id_response(resPtr)
+
+	if resPtr.status_code != 0 {
+		return 0, errors.New(C.GoString(resPtr.error_msg))
+	}
+
+	return uint64(resPtr.sector_id), nil
+}
+
+// ImportSealedSector
+func ImportSealedSector(
+	sectorBuilderPtr unsafe.Pointer,
+	sectorID uint64,
+	sectorCacheDirPath string,
+	sealedSectorPath string,
+	ticket SealTicket,
+	seed SealSeed,
+	commR [CommitmentBytesLen]byte,
+	commD [CommitmentBytesLen]byte,
+	commC [CommitmentBytesLen]byte,
+	commRLast [CommitmentBytesLen]byte,
+	proof []byte,
+	pieces []PieceMetadata,
+) error {
+	defer elapsed("ImportSealedSector")()
+
+	cSectorCacheDirPath := C.CString(sectorCacheDirPath)
+	defer C.free(unsafe.Pointer(cSectorCacheDirPath))
+
+	cSealedSectorPath := C.CString(sealedSectorPath)
+	defer C.free(unsafe.Pointer(cSealedSectorPath))
+
+	cTicketBytes := C.CBytes(ticket.TicketBytes[:])
+	defer C.free(cTicketBytes)
+
+	cSealTicket := C.sector_builder_ffi_FFISealTicket{
+		block_height: C.uint64_t(ticket.BlockHeight),
+		ticket_bytes: *(*[32]C.uint8_t)(cTicketBytes),
+	}
+
+	cSeedBytes := C.CBytes(seed.TicketBytes[:])
+	defer C.free(cSeedBytes)
+
+	cSealSeed := C.sector_builder_ffi_FFISealSeed{
+		block_height: C.uint64_t(seed.BlockHeight),
+		ticket_bytes: *(*[32]C.uint8_t)(cSeedBytes),
+	}
+
+	commDCBytes := C.CBytes(commD[:])
+	defer C.free(commDCBytes)
+
+	commRCBytes := C.CBytes(commR[:])
+	defer C.free(commRCBytes)
+
+	commCCBytes := C.CBytes(commC[:])
+	defer C.free(commCCBytes)
+
+	commRLastCBytes := C.CBytes(commRLast[:])
+	defer C.free(commRLastCBytes)
+
+	proofCBytes := C.CBytes(proof[:]) // Rust will take ownership - don't free
+
+	piecesPtr, piecesLen := cPieceMetadata(pieces) // Rust will own this, too
+
+	resPtr := C.sector_builder_ffi_import_sealed_sector(
+		(*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr),
+		C.uint64_t(sectorID),
+		cSectorCacheDirPath,
+		cSealedSectorPath,
+		cSealTicket,
+		cSealSeed,
+		(*[CommitmentBytesLen]C.uint8_t)(commRCBytes),
+		(*[CommitmentBytesLen]C.uint8_t)(commDCBytes),
+		(*[CommitmentBytesLen]C.uint8_t)(commCCBytes),
+		(*[CommitmentBytesLen]C.uint8_t)(commRLastCBytes),
+		(*C.uint8_t)(proofCBytes),
+		C.size_t(len(proof)),
+		piecesPtr,
+		piecesLen,
+	)
+	defer C.sector_builder_ffi_destroy_import_sealed_sector_response(resPtr)
+
+	if resPtr.status_code != 0 {
+		return errors.New(C.GoString(resPtr.error_msg))
+	}
+
+	return nil
+}
+
 // GeneratePieceCommitment produces a piece commitment for the provided data
 // stored at a given path.
 func GeneratePieceCommitment(piecePath string, pieceSize uint64) ([CommitmentBytesLen]byte, error) {
@@ -707,11 +805,7 @@ func GenerateDataCommitment(sectorSize uint64, pieces []PublicPieceInfo) ([Commi
 		return [CommitmentBytesLen]byte{}, errors.New(C.GoString(resPtr.error_msg))
 	}
 
-	commDSlice := goBytes(&resPtr.comm_d[0], CommitmentBytesLen)
-	var commitment [CommitmentBytesLen]byte
-	copy(commitment[:], commDSlice)
-
-	return commitment, nil
+	return goCommitment(&resPtr.comm_d[0]), nil
 }
 
 // GeneratePieceCommitmentFromFile produces a piece commitment for the provided data
@@ -729,11 +823,7 @@ func GeneratePieceCommitmentFromFile(pieceFile *os.File, pieceSize uint64) (comm
 		return [CommitmentBytesLen]byte{}, errors.New(C.GoString(resPtr.error_msg))
 	}
 
-	commPSlice := goBytes(&resPtr.comm_p[0], CommitmentBytesLen)
-	var commitment [CommitmentBytesLen]byte
-	copy(commitment[:], commPSlice)
-
-	return commitment, nil
+	return goCommitment(&resPtr.comm_p[0]), nil
 }
 
 // StandaloneWriteWithAlignment

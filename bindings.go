@@ -752,9 +752,11 @@ func ImportSealedSector(
 	commRLastCBytes := C.CBytes(commRLast[:])
 	defer C.free(commRLastCBytes)
 
-	proofCBytes := C.CBytes(proof[:]) // Rust will take ownership - don't free
+	proofCBytes := C.CBytes(proof[:])
+	defer C.free(proofCBytes)
 
-	piecesPtr, piecesLen := cPieceMetadata(pieces) // Rust will own this, too
+	piecesPtr, piecesLen := cPieceMetadata(pieces)
+	defer C.free(unsafe.Pointer(piecesPtr))
 
 	resPtr := C.sector_builder_ffi_import_sealed_sector(
 		(*C.sector_builder_ffi_SectorBuilder)(sectorBuilderPtr),

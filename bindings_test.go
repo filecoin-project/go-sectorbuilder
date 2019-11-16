@@ -179,11 +179,11 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	})
 
 	// generate a PoSt
-	proofs, err := sb.GeneratePoSt(ptr, sectorInfo, [32]byte{}, []uint64{})
+	proofs, err := sb.GeneratePoSt(ptr, sectorInfo, [32]byte{}, []sb.Candidate{})
 	require.NoError(t, err)
 
 	// verify the PoSt
-	isValid, err = sb.VerifyPoSt(1024, sectorInfo, [32]byte{}, proofs, []uint64{})
+	isValid, err = sb.VerifyPoSt(1024, sectorInfo, [32]byte{}, proofs, []sb.Candidate{}, proverID)
 	require.NoError(t, err)
 	require.True(t, isValid)
 

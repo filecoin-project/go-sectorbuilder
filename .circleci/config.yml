@@ -116,10 +116,10 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - v15-proof-params-{{ arch }}
+            - v16-proof-params-{{ arch }}
   save_parameter_cache:
     steps:
       - save_cache:
-          key: v15-proof-params-{{ arch }}
+          key: v16-proof-params-{{ arch }}
           paths:
             - "~/filecoin-proof-parameters/"

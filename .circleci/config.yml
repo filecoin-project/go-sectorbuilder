@@ -111,7 +111,8 @@ commands:
     steps:
       - run:
           name: Test project
-          command: RUST_LOG=info go test -p 1
+          command: RUST_LOG=info go test -p 1 -timeout 60m
+          no_output_timeout: 60m
   restore_parameter_cache:
     steps:
       - restore_cache:

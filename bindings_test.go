@@ -186,7 +186,7 @@ func TestSectorBuilderLifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify the PoSt
-	isValid, err = sb.VerifyPoSt(1024, sectorInfo, [32]byte{}, proofs, []sb.Candidate{}, proverID)
+	isValid, err = sb.VerifyPoSt(1024, sectorInfo, [32]byte{}, proofs, candidates, proverID)
 	require.NoError(t, err)
 	require.True(t, isValid)
 

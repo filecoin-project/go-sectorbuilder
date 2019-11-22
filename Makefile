@@ -7,7 +7,7 @@ all: $(DEPS)
 $(DEPS): .install-rust-fil-sector-builder  ;
 
 .install-rust-fil-sector-builder: rust-fil-sector-builder
-	./install-rust-fil-sector-builder
+	./install-rust-fil-sector-builder build
 	@touch $@
 
 

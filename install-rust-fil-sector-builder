@@ -28,7 +28,6 @@ if [ -z "$(ls -A $subm_dir)" ]; then
 fi
 
 # Directory is not empty, hence compiling whatever source is in there
-(>&2 echo "building ${subm_dir} from source")
 build_from_source "${subm_dir}"
 
 mkdir -p include

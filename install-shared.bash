@@ -44,10 +44,10 @@ download_release_tarball() {
 
 build_from_source() {
     __submodule_path=$1
-    __submodule_sha1=$(git rev-parse @:"${__submodule_path}")
+    __submodule_sha1=$(cd ${__submodule_path} && git rev-parse @)
     __submodule_sha1_truncated="${__submodule_sha1:0:16}"
 
-    echo "building from source @ ${__submodule_sha1_truncated}"
+    echo "building ${__submodule_path} from source @ ${__submodule_sha1_truncated}"
 
     if ! [ -x "$(command -v cargo)" ]; then
         (>&2 echo 'Error: cargo is not installed.')

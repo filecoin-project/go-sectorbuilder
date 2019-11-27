@@ -1,6 +1,7 @@
-# go-sectorbuilder
+# DEPRECATED
 
-> Go bindings for the Filecoin Sector Builder
+This repo is no longer supported. Please consider using
+[filecoin-ffi](https://github.com/filecoin-project/filecoin-ffi) instead.
 
 ## Building
 

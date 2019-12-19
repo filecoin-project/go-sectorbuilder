@@ -1,4 +1,4 @@
-package go_sectorbuilder_test
+package sectorbuilder_test
 
 import (
 	"context"
@@ -12,18 +12,19 @@ import (
 	"testing"
 	"time"
 
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
+
+	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/paramfetch"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ffi "github.com/filecoin-project/filecoin-ffi"
-	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/lib/sectorbuilder"
 )
 
 func init() {
-	logging.SetLogLevel("*", "INFO")
+	logging.SetLogLevel("*", "INFO") //nolint: errcheck
 }
 
 const sectorSize = 1024
@@ -132,9 +133,7 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	build.SectorSizes = []uint64{sectorSize}
-
-	if err := build.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(sectorSize); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -204,9 +203,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	build.SectorSizes = []uint64{sectorSize}
-
-	if err := build.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(sectorSize); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -273,9 +270,7 @@ func TestSealAndVerify2(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	build.SectorSizes = []uint64{sectorSize}
-
-	if err := build.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(sectorSize); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -313,14 +308,14 @@ func TestSealAndVerify2(t *testing.T) {
 	s2 := seal{sid: si2}
 
 	wg.Add(2)
-	go s1.precommit(t, sb, 1, wg.Done)
+	go s1.precommit(t, sb, 1, wg.Done) //nolint: staticcheck
 	time.Sleep(100 * time.Millisecond)
-	go s2.precommit(t, sb, 2, wg.Done)
+	go s2.precommit(t, sb, 2, wg.Done) //nolint: staticcheck
 	wg.Wait()
 
 	wg.Add(2)
-	go s1.commit(t, sb, wg.Done)
-	go s2.commit(t, sb, wg.Done)
+	go s1.commit(t, sb, wg.Done) //nolint: staticcheck
+	go s2.commit(t, sb, wg.Done) //nolint: staticcheck
 	wg.Wait()
 
 	post(t, sb, s1, s2)

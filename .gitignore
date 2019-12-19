@@ -1,3 +1,5 @@
 **/*.h
 **/*.a
 **/*.pc
+build/.filecoin-ffi-install
+build/.update-submodules

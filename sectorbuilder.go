@@ -1,4 +1,4 @@
-package go_sectorbuilder
+package sectorbuilder
 
 import (
 	"fmt"
@@ -16,16 +16,13 @@ import (
 	dcopy "github.com/otiai10/copy"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/chain/address"
-	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/go-address"
 )
 
 const PoStReservedWorkers = 1
 const PoRepProofPartitions = 10
 
-var lastSectorIdKey = datastore.NewKey("/sectorbuilder/last")
+var lastSectorIdKey = datastore.NewKey("/last")
 
 var log = logging.Logger("sectorbuilder")
 
@@ -56,7 +53,7 @@ type WorkerCfg struct {
 }
 
 type SectorBuilder struct {
-	ds   dtypes.MetadataDS
+	ds   datastore.Batching
 	idLk sync.Mutex
 
 	ssize  uint64
@@ -84,8 +81,8 @@ type SectorBuilder struct {
 	commitWait    int32
 	unsealWait    int32
 
-	fsLk       sync.Mutex
-	filesystem *fs // TODO: multi-fs support
+	fsLk       sync.Mutex //nolint: struckcheck
+	filesystem *fs        // TODO: multi-fs support
 
 	stopping chan struct{}
 }
@@ -137,7 +134,7 @@ type Config struct {
 	_   struct{} // guard against nameless init
 }
 
-func New(cfg *Config, ds dtypes.MetadataDS) (*SectorBuilder, error) {
+func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	if cfg.WorkerThreads < PoStReservedWorkers {
 		return nil, xerrors.Errorf("minimum worker threads is %d, specified %d", PoStReservedWorkers, cfg.WorkerThreads)
 	}
@@ -639,7 +636,7 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo SortedPublicSectorIn
 		return nil, err
 	}
 
-	challengeCount := types.ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), len(faults))
+	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), len(faults))
 
 	proverID := addressToProverID(sb.Miner)
 	return sectorbuilder.GenerateCandidates(sb.ssize, proverID, challengeSeed, challengeCount, privsectors)
@@ -700,9 +697,9 @@ func (sb *SectorBuilder) Stop() {
 }
 
 func fallbackPostChallengeCount(sectors uint64, faults int) uint64 {
-	challengeCount := types.ElectionPostChallengeCount(sectors, faults)
-	if challengeCount > build.MaxFallbackPostChallengeCount {
-		return build.MaxFallbackPostChallengeCount
+	challengeCount := ElectionPostChallengeCount(sectors, faults)
+	if challengeCount > MaxFallbackPostChallengeCount {
+		return MaxFallbackPostChallengeCount
 	}
 	return challengeCount
 }

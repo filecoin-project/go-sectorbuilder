@@ -1,4 +1,4 @@
-package go_sectorbuilder
+package sectorbuilder
 
 import (
 	"context"
@@ -7,8 +7,7 @@ import (
 	sectorbuilder "github.com/filecoin-project/filecoin-ffi"
 	"go.opencensus.io/trace"
 
-	"github.com/filecoin-project/lotus/chain/address"
-	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/go-address"
 )
 
 func (sb *SectorBuilder) SectorSize() uint64 {
@@ -37,7 +36,7 @@ func NewSortedPublicSectorInfo(sectors []sectorbuilder.PublicSectorInfo) SortedP
 }
 
 func VerifyElectionPost(ctx context.Context, sectorSize uint64, sectorInfo SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address) (bool, error) {
-	challengeCount := types.ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), 0)
+	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), 0)
 	return verifyPost(ctx, sectorSize, sectorInfo, challengeCount, challengeSeed, proof, candidates, proverID)
 }
 

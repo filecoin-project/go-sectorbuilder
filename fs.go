@@ -1,12 +1,12 @@
-package go_sectorbuilder
+package sectorbuilder
 
 import (
-	"github.com/filecoin-project/lotus/chain/types"
-	"golang.org/x/xerrors"
 	"os"
 	"path/filepath"
 	"sync"
 	"syscall"
+
+	"golang.org/x/xerrors"
 )
 
 type dataType string
@@ -93,12 +93,12 @@ func (f *fs) reserve(typ dataType, size uint64) error {
 	need := overheadMul[typ] * size
 
 	if int64(need) > avail {
-		return xerrors.Errorf("not enough space in '%s', need %s, available %s (fs: %s, reserved: %s)",
+		return xerrors.Errorf("not enough space in '%s', need %dB, available %dB (fs: %dB, reserved: %dB)",
 			f.path,
-			types.NewInt(need).SizeStr(),
-			types.NewInt(uint64(avail)).SizeStr(),
-			types.NewInt(uint64(fsavail)).SizeStr(),
-			types.NewInt(uint64(f.reservedBytes())).SizeStr())
+			need,
+			avail,
+			fsavail,
+			f.reservedBytes())
 	}
 
 	f.reserved[typ] += need
@@ -111,6 +111,4 @@ func (f *fs) free(typ dataType, sectorSize uint64) {
 	defer f.lk.Unlock()
 
 	f.reserved[typ] -= overheadMul[typ] * sectorSize
-
-	return
 }

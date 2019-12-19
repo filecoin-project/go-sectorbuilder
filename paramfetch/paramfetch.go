@@ -1,4 +1,4 @@
-package go_sectorbuilder
+package paramfetch
 
 import (
 	"encoding/hex"
@@ -20,7 +20,7 @@ import (
 	pb "gopkg.in/cheggaaa/pb.v1"
 )
 
-var log = logging.Logger("build")
+var log = logging.Logger("paramfetch")
 
 //const gateway = "http://198.211.99.118/ipfs/"
 const gateway = "https://ipfs.io/ipfs/"

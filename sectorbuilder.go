@@ -1,4 +1,4 @@
-package sectorbuilder
+package go_sectorbuilder
 
 import (
 	"fmt"

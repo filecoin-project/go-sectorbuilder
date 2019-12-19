@@ -1,4 +1,4 @@
-package sectorbuilder_test
+package go_sectorbuilder_test
 
 import (
 	"context"

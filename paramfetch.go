@@ -1,4 +1,4 @@
-package build
+package go_sectorbuilder
 
 import (
 	"encoding/hex"

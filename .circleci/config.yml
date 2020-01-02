@@ -115,7 +115,7 @@ jobs:
           name: restore go mod cache
           key: v1-go-deps-{{ arch }}-{{ checksum "/home/circleci/project/go.mod" }}
       - run:
-          command: make deps lotus
+          command: make deps
           no_output_timeout: 30m
       - download-params
       - go/install-gotestsum:

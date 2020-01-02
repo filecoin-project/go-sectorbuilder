@@ -124,6 +124,12 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	return genCandidates
 }
 
+func TestDownloadParams(t *testing.T) {
+	if err := paramfetch.GetParams(sectorSize); err != nil {
+		t.Fatalf("%+v", err)
+	}
+}
+
 func TestSealAndVerify(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")

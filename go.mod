@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20191219131535-bb699517a590
 	github.com/filecoin-project/go-address v0.0.0-20191219011437-af739c490b4f
+	github.com/filecoin-project/go-paramfetch v0.0.0-20200102181131-b20d579f2878 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
 	github.com/ipfs/go-cid v0.0.4 // indirect
@@ -16,7 +17,6 @@ require (
 	github.com/jbenet/goprocess v0.1.3 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.9 // indirect
-	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/sha256-simd v0.1.1 // indirect
 	github.com/mr-tron/base58 v1.1.3 // indirect

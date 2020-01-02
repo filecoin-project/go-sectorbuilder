@@ -16,8 +16,8 @@ import (
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/paramfetch"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

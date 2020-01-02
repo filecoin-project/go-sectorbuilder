@@ -121,10 +121,11 @@ jobs:
       - go/install-gotestsum:
           gobin: $HOME/.local/bin
       - run:
-          name: go test
+          name: run tests
           environment:
             GOTESTSUM_JUNITFILE: /tmp/test-reports/<< parameters.test-suite-name >>/junit.xml
             GOTESTSUM_FORMAT: << parameters.gotestsum-format >>
+            RUST_LOG: info
           command: |
             mkdir -p /tmp/test-reports/<< parameters.test-suite-name >>
             gotestsum -- \

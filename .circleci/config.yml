@@ -75,37 +75,11 @@ jobs:
 
   test: &test
     description: |
-      Run tests with gotestsum.
+      Run tests.
     parameters:
       executor:
         type: executor
         default: golang
-      go-test-flags:
-        type: string
-        default: "-timeout 30m"
-        description: Flags passed to go test.
-      packages:
-        type: string
-        default: "./..."
-        description: Import paths of packages to be tested.
-      test-suite-name:
-        type: string
-        default: unit
-        description: Test suite name to report to CircleCI.
-      gotestsum-format:
-        type: string
-        default: short
-        description: gotestsum format. https://github.com/gotestyourself/gotestsum#format
-      coverage:
-        type: string
-        default: -coverprofile=coverage.txt
-        description: Coverage flag. Set to the empty string to disable.
-      codecov-upload:
-        type: boolean
-        default: false
-        description: |
-          Upload coverage report to https://codecov.io/. Requires the codecov API token to be
-          set as an environment variable for private projects.
     executor: << parameters.executor >>
     steps:
       - install-deps
@@ -118,32 +92,10 @@ jobs:
           command: make deps
           no_output_timeout: 30m
       - download-params
-      - go/install-gotestsum:
-          gobin: $HOME/.local/bin
       - run:
           name: run tests
-          environment:
-            GOTESTSUM_JUNITFILE: /tmp/test-reports/<< parameters.test-suite-name >>/junit.xml
-            GOTESTSUM_FORMAT: << parameters.gotestsum-format >>
-            RUST_LOG: info
-          command: |
-            mkdir -p /tmp/test-reports/<< parameters.test-suite-name >>
-            gotestsum -- \
-              << parameters.coverage >> \
-              << parameters.go-test-flags >> \
-              << parameters.packages >>
-          no_output_timeout: 30m
-      - store_test_results:
-          path: /tmp/test-reports
-      - when:
-          condition: << parameters.codecov-upload >>
-          steps:
-            - go/install: {package: bash}
-            - go/install: {package: curl}
-            - run:
-                shell: /bin/bash -eo pipefail
-                command: |
-                  bash <(curl -s https://codecov.io/bash)
+          command: make test
+          no_output_timeout: 60m
       - save_cache:
           name: save go mod cache
           key: v1-go-deps-{{ arch }}-{{ checksum "/home/circleci/project/go.mod" }}
@@ -248,8 +200,7 @@ workflows:
       - lint-changes:
           args: "--new-from-rev origin/master"
       - test
-      - test-short:
-          go-test-flags: "--timeout 10m --short"
+      - test-short
       - mod-tidy-check
       - build-all
       - build-macos

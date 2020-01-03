@@ -124,6 +124,12 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	return genCandidates
 }
 
+// TestDownloadParams exists only so that developers and CI can pre-download
+// Groth parameters and verifying keys before running the tests which rely on
+// those parameters and keys. To do this, run the following command:
+//
+// go test -run=^TestDownloadParams
+//
 func TestDownloadParams(t *testing.T) {
 	if err := paramfetch.GetParams(sectorSize); err != nil {
 		t.Fatalf("%+v", err)

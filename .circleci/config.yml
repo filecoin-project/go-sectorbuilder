@@ -104,9 +104,6 @@ jobs:
             - "~/go/src/github.com"
             - "~/go/src/golang.org"
 
-  test-short:
-    <<: *test
-
   build-macos:
     description: build with Darwin
     macos:
@@ -200,7 +197,6 @@ workflows:
       - lint-changes:
           args: "--new-from-rev origin/master"
       - test
-      - test-short
       - mod-tidy-check
       - build-all
       - build-macos

@@ -508,6 +508,10 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 
 	stagedPath := sb.StagedSectorPath(sectorID)
 
+	if os.Getenv("QUICK_MODE") == "true" {
+		stagedPath = os.Getenv("STAGED_PATH")
+	}
+
 	// TODO: context cancellation respect
 	rspco, err := sectorbuilder.SealPreCommit(
 		sb.ssize,

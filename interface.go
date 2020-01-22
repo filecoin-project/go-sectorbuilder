@@ -34,6 +34,3 @@ type Verifier interface {
 	VerifyFallbackPost(ctx context.Context, sectorSize uint64, sectorInfo SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address, faults uint64) (bool, error)
 	VerifySeal(sectorSize uint64, commR, commD []byte, proverID address.Address, ticket []byte, seed []byte, sectorID uint64, proof []byte) (bool, error)
 }
-
-var _ Verifier = ProofVerifier
-var _ Interface = &SectorBuilder{}

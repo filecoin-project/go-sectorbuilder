@@ -5,6 +5,7 @@ package sectorbuilder
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"os"
 	"sync/atomic"
 
@@ -142,15 +143,16 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 		return RawSealPreCommitOutput{}, xerrors.Errorf("getting cache dir: %w", err)
 	}
 
-	if _, err := os.Stat(cacheDir); !os.IsNotExist(err) {
+	cached, err := ioutil.ReadDir(cacheDir)
+	if err != nil {
+		return RawSealPreCommitOutput{}, xerrors.Errorf("reading cache dir: %w", err)
+	}
+
+	if len(cached) > 0 {
 		// TODO: can we read t_aux or p_aux to check if we have the correct thing sealed here already?
 		//  (need to check ticket)
 
-		if err != nil {
-			return RawSealPreCommitOutput{}, xerrors.Errorf("stat cache dir: %w", err)
-		}
-
-		log.Warnf("precommit: found cache dir %s, cleaning up", cacheDir)
+		log.Warnf("precommit: cache dir %s contains files %v, cleaning up", cacheDir, cached)
 		if err := os.RemoveAll(cacheDir); err != nil {
 			return RawSealPreCommitOutput{}, xerrors.Errorf("removing cache dir %s: %w", cacheDir, err)
 		}

@@ -2,6 +2,7 @@ package sectorbuilder
 
 import (
 	"context"
+	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -11,6 +12,17 @@ type WorkerTaskType int
 const (
 	WorkerPreCommit WorkerTaskType = iota
 	WorkerCommit
+)
+
+type SealStatus int
+
+const (
+	StatusPreCommitting SealStatus = iota
+	StatusPreCommitDone
+	StatusPreCommitUploaded
+	StatusCommitting
+	StatusCommitDone
+	StatusCommitUploaded
 )
 
 type WorkerTask struct {
@@ -43,8 +55,7 @@ func (sb *SectorBuilder) AddWorker(ctx context.Context, cfg WorkerCfg) (<-chan W
 		busy:      0,
 	}
 
-	sb.remoteCtr++
-	sb.remotes[sb.remoteCtr] = r
+	sb.remotes[cfg.workerId] = r
 
 	go sb.remoteWorker(ctx, r, cfg)
 
@@ -98,7 +109,12 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 	for {
 		select {
 		case task := <-commits:
-			sb.doTask(ctx, r, task)
+			if task.task.SectorID == r.sealSectorID {
+				sb.doTask(ctx, r, task)
+			} else {
+				sb.commitTasks <- task
+				time.Sleep(1 * time.Second)
+			}
 		case task := <-precommits:
 			sb.doTask(ctx, r, task)
 		case <-ctx.Done():

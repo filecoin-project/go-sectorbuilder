@@ -770,16 +770,22 @@ func (sb *SectorBuilder) SetLastSectorID(id uint64) error {
 }
 
 func (sb *SectorBuilder) GetLastSectorID() (uint64, error) {
-	idBytes, err := sb.ds.Get(lastSectorIdKey)
-	if err != nil {
+	b, err := sb.ds.Get(lastSectorIdKey)
+	lastUsedID := uint64(0)
+	switch err {
+	case nil:
+		i, err := strconv.ParseInt(string(b), 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		lastUsedID = uint64(i)
+	case datastore.ErrNotFound:
+		lastUsedID = sb.lastID
+	default:
 		return 0, err
 	}
-	byteBuff := bytes.NewBuffer(idBytes)
-	var id uint64
-	binary.Read(byteBuff, binary.BigEndian, &id)
 
-	sb.lastID = id
-	return id, err
+	return lastUsedID, err
 }
 
 func (sb *SectorBuilder) SetLastSealStatus(status SealStatus) error {

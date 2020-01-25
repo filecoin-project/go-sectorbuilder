@@ -27,7 +27,6 @@ const PoRepProofPartitions = 10
 var lastSectorIdKey = datastore.NewKey("/last")
 var lastSealStatusKey = datastore.NewKey("/last-status")
 
-
 var log = logging.Logger("sectorbuilder")
 
 type SortedPublicSectorInfo = sectorbuilder.SortedPublicSectorInfo
@@ -53,10 +52,10 @@ type WorkerCfg struct {
 	NoPreCommit bool
 	NoCommit    bool
 
-	workerId     string
-	workerIp     string
-	sealSectorId uint64
-	SealStatus   SealStatus
+	WorkerId   string
+	WorkerIp   string
+	SectorId   uint64
+	SealStatus SealStatus
 
 	// TODO: 'cost' info, probably in terms of sealing + transfer speed
 }
@@ -79,10 +78,10 @@ type SectorBuilder struct {
 	precommitTasks chan workerCall
 	commitTasks    chan workerCall
 
-	taskCtr   uint64
-	remoteLk  sync.Mutex
+	taskCtr  uint64
+	remoteLk sync.Mutex
 
-	remotes   map[string]*remote
+	remotes map[string]*remote
 
 	remotePreCommitTasks map[uint64]chan workerCall
 	remoteCommitTasks    map[uint64]chan workerCall

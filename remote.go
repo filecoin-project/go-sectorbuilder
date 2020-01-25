@@ -57,7 +57,8 @@ func (sb *SectorBuilder) AddWorker(ctx context.Context, cfg WorkerCfg) (<-chan W
 	}
 
 	if cfg.WorkerId == "" {
-		cfg.WorkerId = strconv.Itoa(len(sb.remotes) + 1)
+		sb.remoteCtr++
+		cfg.WorkerId = sb.remoteCtr
 	}
 	sb.remotes[cfg.WorkerId] = r
 

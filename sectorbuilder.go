@@ -207,9 +207,9 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	return sb, nil
 }
 
-func NewStandalone(cfg *Config) (*SectorBuilder, error) {
+func NewStandalone(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	sb := &SectorBuilder{
-		ds: nil,
+		ds: ds,
 
 		ssize: cfg.SectorSize,
 

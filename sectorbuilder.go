@@ -1,7 +1,9 @@
 package sectorbuilder
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,6 +25,8 @@ const PoStReservedWorkers = 1
 const PoRepProofPartitions = 10
 
 var lastSectorIdKey = datastore.NewKey("/last")
+var lastSealStatusKey = datastore.NewKey("/last-status")
+
 
 var log = logging.Logger("sectorbuilder")
 
@@ -49,6 +53,11 @@ type WorkerCfg struct {
 	NoPreCommit bool
 	NoCommit    bool
 
+	workerId     string
+	workerIp     string
+	sealSectorId uint64
+	SealStatus   SealStatus
+
 	// TODO: 'cost' info, probably in terms of sealing + transfer speed
 }
 
@@ -70,10 +79,14 @@ type SectorBuilder struct {
 	precommitTasks chan workerCall
 	commitTasks    chan workerCall
 
-	taskCtr       uint64
-	remoteLk      sync.Mutex
-	remoteCtr     int
-	remotes       map[int]*remote
+	taskCtr   uint64
+	remoteLk  sync.Mutex
+
+	remotes   map[string]*remote
+
+	remotePreCommitTasks map[uint64]chan workerCall
+	remoteCommitTasks    map[uint64]chan workerCall
+
 	remoteResults map[uint64]chan<- SealRes
 
 	addPieceWait  int32
@@ -116,6 +129,9 @@ type SealRes struct {
 
 type remote struct {
 	lk sync.Mutex
+
+	sealSectorID uint64
+	sealStatus   SealStatus
 
 	sealTasks chan<- WorkerTask
 	busy      uint64 // only for metrics
@@ -180,7 +196,7 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 		precommitTasks: make(chan workerCall),
 		commitTasks:    make(chan workerCall),
 		remoteResults:  map[uint64]chan<- SealRes{},
-		remotes:        map[int]*remote{},
+		remotes:        map[string]*remote{},
 
 		stopping: make(chan struct{}),
 	}
@@ -202,7 +218,7 @@ func NewStandalone(cfg *Config) (*SectorBuilder, error) {
 		filesystem: openFs(cfg.Dir),
 
 		taskCtr:   1,
-		remotes:   map[int]*remote{},
+		remotes:   map[string]*remote{},
 		rateLimit: make(chan struct{}, cfg.WorkerThreads),
 		stopping:  make(chan struct{}),
 	}
@@ -513,7 +529,6 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 	}
 	log.Infof("stagedPath:%v", stagedPath)
 
-
 	// TODO: context cancellation respect
 	rspco, err := sectorbuilder.SealPreCommit(
 		sb.ssize,
@@ -753,6 +768,38 @@ func (sb *SectorBuilder) SetLastSectorID(id uint64) error {
 
 	sb.lastID = id
 	return nil
+}
+
+func (sb *SectorBuilder) GetLastSectorID() (uint64, error) {
+	idBytes, err := sb.ds.Get(lastSectorIdKey)
+	if err != nil {
+		return 0, err
+	}
+	byteBuff := bytes.NewBuffer(idBytes)
+	var id uint64
+	binary.Read(byteBuff, binary.BigEndian, &id)
+
+	sb.lastID = id
+	return id, err
+}
+
+func (sb *SectorBuilder) SetLastSealStatus(status SealStatus) error {
+	if err := sb.ds.Put(lastSealStatusKey, []byte(fmt.Sprint(status))); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sb *SectorBuilder) GetLastSealStatus() (SealStatus, error) {
+	intBytes, err := sb.ds.Get(lastSealStatusKey)
+	if err != nil {
+		return 0, err
+	}
+	byteBuff := bytes.NewBuffer(intBytes)
+	var status SealStatus
+	binary.Read(byteBuff, binary.BigEndian, &status)
+
+	return status, err
 }
 
 func migrate(from, to string, symlink bool) error {

@@ -1,7 +1,9 @@
 package sectorbuilder
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,6 +25,8 @@ const PoStReservedWorkers = 1
 const PoRepProofPartitions = 10
 
 var lastSectorIdKey = datastore.NewKey("/last")
+var lastSealStatusKey = datastore.NewKey("/last-status")
+
 
 var log = logging.Logger("sectorbuilder")
 
@@ -764,6 +768,38 @@ func (sb *SectorBuilder) SetLastSectorID(id uint64) error {
 
 	sb.lastID = id
 	return nil
+}
+
+func (sb *SectorBuilder) GetLastSectorID() (uint64, error) {
+	idBytes, err := sb.ds.Get(lastSectorIdKey)
+	if err != nil {
+		return 0, err
+	}
+	byteBuff := bytes.NewBuffer(idBytes)
+	var id uint64
+	binary.Read(byteBuff, binary.BigEndian, &id)
+
+	sb.lastID = id
+	return id, err
+}
+
+func (sb *SectorBuilder) SetLastSealStatus(status SealStatus) error {
+	if err := sb.ds.Put(lastSealStatusKey, []byte(fmt.Sprint(status))); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sb *SectorBuilder) GetLastSealStatus() (SealStatus, error) {
+	intBytes, err := sb.ds.Get(lastSealStatusKey)
+	if err != nil {
+		return 0, err
+	}
+	byteBuff := bytes.NewBuffer(intBytes)
+	var status SealStatus
+	binary.Read(byteBuff, binary.BigEndian, &status)
+
+	return status, err
 }
 
 func migrate(from, to string, symlink bool) error {

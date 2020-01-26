@@ -64,7 +64,7 @@ func (sb *SectorBuilder) AddWorker(ctx context.Context, cfg WorkerCfg) (<-chan W
 	}
 	sb.remotes[cfg.WorkerId] = r
 
-
+	log.Infof("add a worker %v", cfg)
 	go sb.remoteWorker(ctx, r, cfg)
 
 	return taskCh, nil

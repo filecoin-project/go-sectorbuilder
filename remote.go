@@ -52,13 +52,15 @@ func (sb *SectorBuilder) AddWorker(ctx context.Context, cfg WorkerCfg) (<-chan W
 
 	taskCh := make(chan WorkerTask)
 	r := &remote{
+		sealSectorID: cfg.SectorId,
+		sealStatus: cfg.SealStatus,
 		sealTasks: taskCh,
 		busy:      0,
 	}
 
 	if cfg.WorkerId == "" {
 		sb.remoteCtr++
-		cfg.WorkerId = sb.remoteCtr
+		cfg.WorkerId = strconv.Itoa(sb.remoteCtr)
 	}
 	sb.remotes[cfg.WorkerId] = r
 

@@ -31,6 +31,10 @@ type WorkerCfg struct {
 	NoPreCommit bool
 	NoCommit    bool
 
+	WorkerId   string
+	SectorId   uint64
+	SealStatus SealStatus
+
 	// TODO: 'cost' info, probably in terms of sealing + transfer speed
 }
 

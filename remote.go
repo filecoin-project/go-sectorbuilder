@@ -120,7 +120,7 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 			if task.task.SectorID == r.sealSectorID {
 				sb.doTask(ctx, r, task)
 			} else {
-				sb.commitTasks <- task
+				sb.returnTask(task)
 				time.Sleep(1 * time.Second)
 			}
 		case task := <-precommits:
@@ -149,6 +149,7 @@ func (sb *SectorBuilder) doTask(ctx context.Context, r *remote, task workerCall)
 	// send the task
 	select {
 	case r.sealTasks <- task.task:
+		log.Infof("send task: %v", task.task)
 	case <-ctx.Done():
 		sb.returnTask(task)
 		return

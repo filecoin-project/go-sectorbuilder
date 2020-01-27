@@ -18,7 +18,8 @@ const (
 type SealStatus int
 
 const (
-	StatusPreCommitting SealStatus = iota
+	StatusFree SealStatus = iota
+	StatusPreCommitting
 	StatusPreCommitDone
 	StatusPreCommitUploaded
 	StatusCommitting
@@ -53,9 +54,9 @@ func (sb *SectorBuilder) AddWorker(ctx context.Context, cfg WorkerCfg) (<-chan W
 	taskCh := make(chan WorkerTask)
 	r := &remote{
 		sealSectorID: cfg.SectorId,
-		sealStatus: cfg.SealStatus,
-		sealTasks: taskCh,
-		busy:      0,
+		sealStatus:   cfg.SealStatus,
+		sealTasks:    taskCh,
+		busy:         0,
 	}
 
 	if cfg.WorkerId == "" {

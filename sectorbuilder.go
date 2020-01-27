@@ -78,10 +78,11 @@ type SectorBuilder struct {
 	precommitTasks chan workerCall
 	commitTasks    chan workerCall
 
-	taskCtr   uint64
-	remoteLk  sync.Mutex
-	remoteCtr int
-	remotes   map[string]*remote
+	taskCtr  uint64
+	remoteLk sync.Mutex
+
+	remotes              map[string]*remote
+	remoteCtr            int
 
 	remotePreCommitTasks map[uint64]chan workerCall
 	remoteCommitTasks    map[uint64]chan workerCall

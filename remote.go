@@ -124,7 +124,9 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 				time.Sleep(1 * time.Second)
 			}
 		case task := <-precommits:
-			sb.doTask(ctx, r, task)
+			if r.sealSectorID == 0 {
+				sb.doTask(ctx, r, task)
+			}
 		case <-ctx.Done():
 			return
 		case <-sb.stopping:

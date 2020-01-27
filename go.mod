@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20191219131535-bb699517a590
-	github.com/filecoin-project/go-address v0.0.0-20191219011437-af739c490b4f
+	github.com/filecoin-project/go-address v0.0.0-20200107215422-da8eea2842b5
 	github.com/filecoin-project/go-paramfetch v0.0.0-20200102181131-b20d579f2878
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect

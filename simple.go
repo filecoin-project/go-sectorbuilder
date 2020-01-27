@@ -1,3 +1,5 @@
+//+build cgo
+
 package sectorbuilder
 
 import (
@@ -10,11 +12,14 @@ import (
 	"github.com/filecoin-project/go-address"
 )
 
+var _ Verifier = ProofVerifier
+
 func (sb *SectorBuilder) SectorSize() uint64 {
 	return sb.ssize
 }
 
-type proofVerifier struct {}
+type proofVerifier struct{}
+
 var ProofVerifier = proofVerifier{}
 
 var UserBytesForSectorSize = sectorbuilder.GetMaxUserBytesPerStagedSector

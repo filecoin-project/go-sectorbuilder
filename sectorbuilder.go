@@ -81,8 +81,8 @@ type SectorBuilder struct {
 	taskCtr  uint64
 	remoteLk sync.Mutex
 
-	remotes map[string]*remote
-
+	remotes              map[string]*remote
+	remoteCtr            int
 	remotePreCommitTasks map[uint64]chan workerCall
 	remoteCommitTasks    map[uint64]chan workerCall
 

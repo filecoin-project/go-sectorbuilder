@@ -3,3 +3,7 @@
 **/*.pc
 build/.filecoin-ffi-install
 build/.update-submodules
+
+/.idea
+/vendor
+/bench

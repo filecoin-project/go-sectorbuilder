@@ -5,6 +5,7 @@ package sectorbuilder
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"os"
 	"sync/atomic"
 
@@ -137,6 +138,42 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(sectorID uint64, offset uint6
 func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, ticket SealTicket, pieces []PublicPieceInfo) (RawSealPreCommitOutput, error) {
 	fs := sb.filesystem
 
+	cacheDir, err := sb.sectorCacheDir(sectorID)
+	if err != nil {
+		return RawSealPreCommitOutput{}, xerrors.Errorf("getting cache dir: %w", err)
+	}
+
+	cached, err := ioutil.ReadDir(cacheDir)
+	if err != nil {
+		return RawSealPreCommitOutput{}, xerrors.Errorf("reading cache dir: %w", err)
+	}
+
+	if len(cached) > 0 {
+		// TODO: can we read t_aux or p_aux to check if we have the correct thing sealed here already?
+		//  (need to check ticket)
+
+		log.Warnf("precommit: cache dir %s contains files %v, cleaning up", cacheDir, cached)
+		if err := os.RemoveAll(cacheDir); err != nil {
+			return RawSealPreCommitOutput{}, xerrors.Errorf("removing cache dir %s: %w", cacheDir, err)
+		}
+	}
+
+	sealedPath, err := sb.SealedSectorPath(sectorID)
+	if err != nil {
+		return RawSealPreCommitOutput{}, xerrors.Errorf("getting sealed sector path: %w", err)
+	}
+
+	if _, err := os.Stat(sealedPath); !os.IsNotExist(err) {
+		if err != nil {
+			return RawSealPreCommitOutput{}, xerrors.Errorf("stat cache dir: %w", err)
+		}
+
+		log.Warnf("precommit: found sealed sector %s, cleaning up", sealedPath)
+		if err := os.Remove(sealedPath); err != nil {
+			return RawSealPreCommitOutput{}, xerrors.Errorf("removing sealed sector %s: %w", sealedPath, err)
+		}
+	}
+
 	if err := fs.reserve(dataCache, sb.ssize); err != nil {
 		return RawSealPreCommitOutput{}, err
 	}
@@ -188,16 +225,6 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 	defer func() {
 		<-sb.rateLimit
 	}()
-
-	cacheDir, err := sb.sectorCacheDir(sectorID)
-	if err != nil {
-		return RawSealPreCommitOutput{}, xerrors.Errorf("getting cache dir: %w", err)
-	}
-
-	sealedPath, err := sb.SealedSectorPath(sectorID)
-	if err != nil {
-		return RawSealPreCommitOutput{}, xerrors.Errorf("getting sealed sector path: %w", err)
-	}
 
 	e, err := os.OpenFile(sealedPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {

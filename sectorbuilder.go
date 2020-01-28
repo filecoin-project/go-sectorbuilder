@@ -1,7 +1,9 @@
 package sectorbuilder
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"sync/atomic"
 
@@ -244,7 +246,7 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faul
 			continue
 		}
 
-		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorID)
+		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorID) // TODO: LOCK!
 		if err != nil {
 			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorID, err)
 		}
@@ -270,6 +272,84 @@ func fallbackPostChallengeCount(sectors uint64, faults uint64) uint64 {
 		return MaxFallbackPostChallengeCount
 	}
 	return challengeCount
+}
+
+func (sb *SectorBuilder) FinalizeSector(ctx context.Context, id uint64) error {
+	sealed, err := sb.filesystem.FindSector(fs.DataSealed, sb.Miner, id)
+	if err != nil {
+		return xerrors.Errorf("getting sealed sector: %w", err)
+	}
+	cache, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, id)
+	if err != nil {
+		return xerrors.Errorf("getting sector cache: %w", err)
+	}
+
+	// todo: flag to just remove
+	staged, err := sb.filesystem.FindSector(fs.DataStaging, sb.Miner, id)
+	if err != nil {
+		return xerrors.Errorf("getting staged sector: %w", err)
+	}
+
+	{
+		if err := sb.filesystem.Lock(ctx, sealed); err != nil {
+			return err
+		}
+		defer sb.filesystem.Unlock(sealed)
+
+		if err := sb.filesystem.Lock(ctx, cache); err != nil {
+			return err
+		}
+		defer sb.filesystem.Unlock(cache)
+
+		if err := sb.filesystem.Lock(ctx, staged); err != nil {
+			return err
+		}
+		defer sb.filesystem.Unlock(staged)
+	}
+
+	sealedDest, err := sb.filesystem.PrepareCacheMove(sealed, sb.ssize, false)
+	if err != nil {
+		return xerrors.Errorf("prepare move sealed: %w", err)
+	}
+	defer sb.filesystem.Release(sealedDest, sb.ssize)
+
+	cacheDest, err := sb.filesystem.PrepareCacheMove(cache, sb.ssize, false)
+	if err != nil {
+		return xerrors.Errorf("prepare move cache: %w", err)
+	}
+	defer sb.filesystem.Release(cacheDest, sb.ssize)
+
+	stagedDest, err := sb.filesystem.PrepareCacheMove(staged, sb.ssize, false)
+	if err != nil {
+		return xerrors.Errorf("prepare move staged: %w", err)
+	}
+	defer sb.filesystem.Release(stagedDest, sb.ssize)
+
+	if err := sb.filesystem.MoveSector(sealed, sealedDest); err != nil {
+		return xerrors.Errorf("move sealed: %w", err)
+	}
+	if err := sb.filesystem.MoveSector(cache, cacheDest); err != nil {
+		return xerrors.Errorf("move cache: %w", err)
+	}
+	if err := sb.filesystem.MoveSector(staged, stagedDest); err != nil {
+		return xerrors.Errorf("move staged: %w", err)
+	}
+
+	return nil
+}
+
+func (sb *SectorBuilder) DropStaged(ctx context.Context, id uint64) error {
+	sp, err := sb.SectorPath(fs.DataStaging, id)
+	if err != nil {
+		return xerrors.Errorf("finding staged sector: %w", err)
+	}
+
+	if err := sb.filesystem.Lock(ctx, sp); err != nil {
+		return err
+	}
+	defer sb.filesystem.Unlock(sp)
+
+	return os.RemoveAll(string(sp))
 }
 
 func (sb *SectorBuilder) ImportFrom(osb *SectorBuilder, symlink bool) error {

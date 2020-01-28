@@ -13,11 +13,12 @@ import (
 	"time"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 
-	paramfetch "github.com/filecoin-project/go-paramfetch"
 	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,21 +149,41 @@ func TestSealAndVerify(t *testing.T) {
 
 	ds := datastore.NewMapDatastore()
 
-	dir, err := ioutil.TempDir("", "sbtest")
+	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sdir, err := ioutil.TempDir("", "sbtest-s-")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	paths := []fs.PathConfig{
+		{
+			Path:   cdir,
+			Cache:  true,
+			Weight: 1,
+		},
+		{
+			Path:   sdir,
+			Cache:  false,
+			Weight: 1,
+		},
+	}
+
+	sb, err := sectorbuilder.TempSectorbuilderDir(paths, sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 	cleanup := func() {
 		if t.Failed() {
-			fmt.Printf("not removing %s\n", dir)
+			fmt.Printf("not removing %s, %s\n", cdir, sdir)
 			return
 		}
-		if err := os.RemoveAll(dir); err != nil {
+		if err := os.RemoveAll(cdir); err != nil {
+			t.Error(err)
+		}
+		if err := os.RemoveAll(sdir); err != nil {
 			t.Error(err)
 		}
 	}
@@ -190,12 +211,16 @@ func TestSealAndVerify(t *testing.T) {
 	epost := time.Now()
 
 	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(paths, sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	post(t, sb, s)
+
+	if err := sb.FinalizeSector(context.TODO(), 1); err != nil {
+		t.Fatalf("%+v", err)
+	}
 
 	fmt.Printf("PreCommit: %s\n", precommit.Sub(start).String())
 	fmt.Printf("Commit: %s\n", commit.Sub(precommit).String())
@@ -220,7 +245,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -249,7 +274,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	precommit := time.Now()
 
 	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -284,7 +309,7 @@ func TestSealAndVerify2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -332,7 +357,7 @@ func TestAcquireID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -347,7 +372,7 @@ func TestAcquireID(t *testing.T) {
 	assertAcquire(2)
 	assertAcquire(3)
 
-	sb, err = sectorbuilder.TempSectorbuilderDir(dir, sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

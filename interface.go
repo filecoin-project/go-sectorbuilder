@@ -11,6 +11,7 @@ import (
 
 type Interface interface {
 	RateLimit() func()
+
 	AddPiece(context.Context, uint64, uint64, io.Reader, []uint64) (PublicPieceInfo, error)
 	SectorSize() uint64
 	AcquireSectorId() (uint64, error)
@@ -22,6 +23,9 @@ type Interface interface {
 
 	SealPreCommit(context.Context, uint64, SealTicket, []PublicPieceInfo) (RawSealPreCommitOutput, error)
 	SealCommit(context.Context, uint64, SealTicket, SealSeed, []PublicPieceInfo, RawSealPreCommitOutput) ([]byte, error)
+	// FinalizeSector cleans up cache, and moves it to storage filesystem
+	FinalizeSector(context.Context, uint64) error
+	DropStaged(context.Context, uint64) error
 
 	ReadPieceFromSealedSector(ctx context.Context, sectorID uint64, offset uint64, size uint64, ticket []byte, commD []byte) (io.ReadCloser, error)
 

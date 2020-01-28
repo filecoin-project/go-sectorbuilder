@@ -27,7 +27,7 @@ func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorID uint64, cache
 }
 
 func (sb *SectorBuilder) ReleaseSector(typ fs.DataType, path fs.SectorPath) {
-	sb.filesystem.Release(typ, path, sb.ssize)
+	sb.filesystem.Release(path, sb.ssize)
 }
 
 func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID uint64) error {

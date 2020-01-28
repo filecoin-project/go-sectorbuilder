@@ -3,14 +3,12 @@ package fs
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/filecoin-project/go-address"
 	logging "github.com/ipfs/go-log/v2"
@@ -21,6 +19,7 @@ var log = logging.Logger("sectorbuilder")
 
 var ErrNotFound = errors.New("sector not found")
 var ErrExists = errors.New("sector already exists")
+var ErrNoSuitablePath = errors.New("no suitable path for sector fond")
 
 type DataType string
 
@@ -83,7 +82,7 @@ func SectorName(miner address.Address, sectorID uint64) string {
 	return fmt.Sprintf("s-%s-%d", miner, sectorID)
 }
 
-func (p StoragePath) sector(typ DataType, miner address.Address, id uint64) SectorPath {
+func (p StoragePath) Sector(typ DataType, miner address.Address, id uint64) SectorPath {
 	return SectorPath(filepath.Join(string(p), string(typ), SectorName(miner, id)))
 }
 
@@ -152,7 +151,7 @@ func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out Sec
 	// TODO: consider keeping some sort of index at some point
 
 	for path := range f.paths {
-		p := path.sector(typ, miner, id)
+		p := path.Sector(typ, miner, id)
 
 		_, err := os.Stat(string(p))
 		if os.IsNotExist(err) {
@@ -178,13 +177,13 @@ func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out Sec
 	return out, nil
 }
 
-func (f *FS) findBestPath(size uint64, cache bool) StoragePath {
+func (f *FS) findBestPath(size uint64, cache bool, strict bool) StoragePath {
 	var best StoragePath
 	bestw := big.NewInt(0)
 	bestc := !cache
 
 	for path, info := range f.paths {
-		if info.cache != cache && bestc != info.cache {
+		if info.cache != cache && (bestc != info.cache || strict) {
 			continue
 		}
 
@@ -243,88 +242,53 @@ func (f *FS) AllocSector(typ DataType, miner address.Address, ssize uint64, cach
 
 	need := overheadMul[typ] * ssize
 
-	p := f.findBestPath(need, cache)
+	p := f.findBestPath(need, cache, cache)
 	if p == "" {
-		return "", xerrors.New("no suitable path for sector fond")
+		return "", ErrNoSuitablePath
 	}
 
-	sp := p.sector(typ, miner, id)
+	sp := p.Sector(typ, miner, id)
 
-	return sp, f.reserve(typ, sp, need)
+	return sp, f.reserve(typ, sp.storage(), need)
 }
 
-// reserve reserves storage for the sector. `path` is the path of the directory containing sectors
-func (f *FS) reserve(typ DataType, path SectorPath, size uint64) error {
-	f.lk.Lock()
-	defer f.lk.Unlock()
-
-	avail, fsavail, err := f.availableBytes(path.storage())
+func (f *FS) PrepareCacheMove(sector SectorPath, ssize uint64, tocache bool) (SectorPath, error) {
+	p := f.findBestPath(ssize, tocache, true)
+	if p == "" {
+		return "", ErrNoSuitablePath
+	}
+	m, err := sector.miner()
 	if err != nil {
-		return err
+		return "", err
+	}
+	id, err := sector.id()
+	if err != nil {
+		return "", err
 	}
 
-	if int64(size) > avail {
-		return xerrors.Errorf("not enough space in '%s', need %dB, available %dB (fs: %dB, reserved: %dB)",
-			f.paths,
-			size,
-			avail,
-			fsavail,
-			f.reservedBytes(path.storage()))
+	return p.Sector(sector.typ(), m, id), f.reserve(sector.typ(), p, ssize)
+}
+
+func (f *FS) MoveSector(from, to SectorPath) error {
+	inf, err := os.Stat(string(from))
+	if err != nil {
+		return xerrors.Errorf("stat %s: %w", from, err)
 	}
 
-	if _, ok := f.reserved[path.storage()]; !ok {
-		f.reserved[path.storage()] = map[DataType]uint64{}
+	if inf.IsDir() {
+		err = migrateDir(string(from), string(to), false)
+	} else {
+		err = migrateFile(string(from), string(to), false)
 	}
-	f.reserved[path.storage()][typ] += size
+	if err != nil {
+		return xerrors.Errorf("migrate sector %s -> %s: %w", from, to, err)
+	}
+
+	// TODO: run some quick checks
+
+	if err := os.RemoveAll(string(from)); err != nil {
+		return xerrors.Errorf("cleanup %s: %w", from, err)
+	}
 
 	return nil
-}
-
-func (f *FS) Release(typ DataType, path SectorPath, sectorSize uint64) {
-	f.lk.Lock()
-	defer f.lk.Unlock()
-
-	f.reserved[path.storage()][typ] -= overheadMul[typ] * sectorSize
-}
-
-func (f *FS) List(path StoragePath, typ DataType) ([]SectorPath, error) {
-	tp := filepath.Join(string(path), string(typ))
-
-	ents, err := ioutil.ReadDir(tp)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]SectorPath, len(ents))
-	for i, ent := range ents {
-		out[i] = SectorPath(filepath.Join(tp, ent.Name()))
-	}
-
-	return out, nil
-}
-
-func (f *FS) reservedBytes(path StoragePath) int64 {
-	var out int64
-	rsvs, ok := f.reserved[path]
-	if !ok {
-		return 0
-	}
-	for _, r := range rsvs {
-		out += int64(r)
-	}
-	return out
-}
-
-func (f *FS) availableBytes(path StoragePath) (int64, int64, error) {
-	var fsstat syscall.Statfs_t
-
-	if err := syscall.Statfs(string(path), &fsstat); err != nil {
-		return 0, 0, err
-	}
-
-	fsavail := int64(fsstat.Bavail) * int64(fsstat.Bsize)
-
-	avail := fsavail - f.reservedBytes(path)
-
-	return avail, fsavail, nil
 }

@@ -66,7 +66,7 @@ type SectorBuilder struct {
 	unsealWait    int32
 
 	fsLk       sync.Mutex //nolint: struckcheck
-	filesystem *fs.FS     // TODO: multi-fs support
+	filesystem *fs.FS
 
 	stopping chan struct{}
 }

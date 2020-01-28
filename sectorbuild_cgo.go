@@ -40,7 +40,7 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize uint64, sectorI
 			return PublicPieceInfo{}, xerrors.Errorf("opening sector file: %w", err)
 		}
 
-		defer sb.filesystem.Release(fs.DataStaging, stagedPath, sb.ssize)
+		defer sb.filesystem.Release(stagedPath, sb.ssize)
 	} else {
 		stagedPath, err = sb.SectorPath(fs.DataStaging, sectorId)
 		if err != nil {
@@ -87,7 +87,7 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorID
 			return nil, xerrors.Errorf("AllocSector: %w", err)
 		}
 	}
-	defer sfs.Release(fs.DataUnsealed, unsealedPath, sb.ssize)
+	defer sfs.Release(unsealedPath, sb.ssize)
 
 	if err := sfs.Lock(ctx, unsealedPath); err != nil {
 		return nil, err
@@ -178,8 +178,8 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 		return RawSealPreCommitOutput{}, xerrors.Errorf("getting sealed sector paths: %w", err)
 	}
 
-	defer sfs.Release(fs.DataCache, cacheDir, sb.ssize)
-	defer sfs.Release(fs.DataSealed, sealedPath, sb.ssize)
+	defer sfs.Release(cacheDir, sb.ssize)
+	defer sfs.Release(sealedPath, sb.ssize)
 
 	if err := sfs.Lock(ctx, cacheDir); err != nil {
 		return RawSealPreCommitOutput{}, xerrors.Errorf("lock cache: %w", err)

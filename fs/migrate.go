@@ -94,5 +94,7 @@ func migrateFile(from, to string, symlink bool) error {
 		return os.Symlink(from, to)
 	}
 
+	log.Info("copy %s -> %s", from, to)
+
 	return dcopy.Copy(from, to)
 }

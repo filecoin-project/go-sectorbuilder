@@ -43,7 +43,7 @@ func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, sid uint
 
 	var err error
 	r := io.LimitReader(rand.New(rand.NewSource(42+int64(sid))), int64(dlen))
-	s.ppi, err = sb.AddPiece(dlen, sid, r, []uint64{})
+	s.ppi, err = sb.AddPiece(context.TODO(), dlen, sid, r, []uint64{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -254,7 +254,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	if err := sb.TrimCache(1); err != nil {
+	if err := sb.TrimCache(context.TODO(), 1); err != nil {
 		t.Fatal(err)
 	}
 

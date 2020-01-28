@@ -5,11 +5,13 @@ import (
 	"io"
 
 	"github.com/filecoin-project/go-address"
+
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 type Interface interface {
 	RateLimit() func()
-	AddPiece(uint64, uint64, io.Reader, []uint64) (PublicPieceInfo, error)
+	AddPiece(context.Context, uint64, uint64, io.Reader, []uint64) (PublicPieceInfo, error)
 	SectorSize() uint64
 	AcquireSectorId() (uint64, error)
 	Scrub(SortedPublicSectorInfo) []*Fault
@@ -21,9 +23,11 @@ type Interface interface {
 	SealPreCommit(context.Context, uint64, SealTicket, []PublicPieceInfo) (RawSealPreCommitOutput, error)
 	SealCommit(context.Context, uint64, SealTicket, SealSeed, []PublicPieceInfo, RawSealPreCommitOutput) ([]byte, error)
 
-	ReadPieceFromSealedSector(sectorID uint64, offset uint64, size uint64, ticket []byte, commD []byte) (io.ReadCloser, error)
+	ReadPieceFromSealedSector(ctx context.Context, sectorID uint64, offset uint64, size uint64, ticket []byte, commD []byte) (io.ReadCloser, error)
 
-	GetPath(string, string) (string, error)
+	SectorPath(typ fs.DataType, sectorID uint64) (fs.SectorPath, error)
+	AllocSectorPath(typ fs.DataType, sectorID uint64, cache bool) (fs.SectorPath, error)
+	ReleaseSector(fs.DataType, fs.SectorPath)
 	CanCommit(sectorID uint64) (bool, error)
 	WorkerStats() WorkerStats
 	AddWorker(context.Context, WorkerCfg) (<-chan WorkerTask, error)

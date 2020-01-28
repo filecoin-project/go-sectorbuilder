@@ -7,6 +7,8 @@ import (
 
 	sectorbuilder "github.com/filecoin-project/filecoin-ffi"
 	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 type Fault struct {
@@ -29,10 +31,11 @@ func (sb *SectorBuilder) Scrub(sectorSet sectorbuilder.SortedPublicSectorInfo) [
 }
 
 func (sb *SectorBuilder) checkSector(sectorID uint64) error {
-	cache, err := sb.sectorCacheDir(sectorID)
+	scache, err := sb.SectorPath(fs.DataCache, sectorID)
 	if err != nil {
 		return xerrors.Errorf("getting sector cache dir: %w", err)
 	}
+	cache := string(scache)
 
 	if err := assertFile(filepath.Join(cache, "p_aux"), 96, 96); err != nil {
 		return err
@@ -54,12 +57,12 @@ func (sb *SectorBuilder) checkSector(sectorID uint64) error {
 		return xerrors.Errorf("found %d files in %s, expected 3", len(dent), cache)
 	}
 
-	sealed, err := sb.SealedSectorPath(sectorID)
+	sealed, err := sb.SectorPath(fs.DataSealed, sectorID)
 	if err != nil {
-		return xerrors.Errorf("getting sealed sector path: %w", err)
+		return xerrors.Errorf("getting sealed sector paths: %w", err)
 	}
 
-	if err := assertFile(filepath.Join(sealed), sb.ssize, sb.ssize); err != nil {
+	if err := assertFile(filepath.Join(string(sealed)), sb.ssize, sb.ssize); err != nil {
 		return err
 	}
 

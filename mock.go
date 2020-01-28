@@ -2,6 +2,7 @@ package sectorbuilder
 
 import (
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 	"github.com/ipfs/go-datastore"
 )
 
@@ -14,7 +15,11 @@ func TempSectorbuilderDir(dir string, sectorSize uint64, ds datastore.Batching) 
 	sb, err := New(&Config{
 		SectorSize: sectorSize,
 
-		Dir: dir,
+		Paths: []fs.PathConfig{{
+			Path:   dir,
+			Cache:  false,
+			Weight: 1,
+		}},
 
 		WorkerThreads: 2,
 		Miner:         addr,

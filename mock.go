@@ -30,7 +30,7 @@ func TempSectorbuilderDir(paths []fs.PathConfig, sectorSize uint64, ds datastore
 func SimplePath(dir string) []fs.PathConfig {
 	return []fs.PathConfig{{
 		Path:   dir,
-		Cache:  false,
+		Cache:  true,
 		Weight: 1,
 	}}
 }

@@ -180,7 +180,9 @@ func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out Sec
 func (f *FS) findBestPath(size uint64, cache bool, strict bool) StoragePath {
 	var best StoragePath
 	bestw := big.NewInt(0)
-	bestc := !cache
+
+	// If we need cache, only return cache. If we need storage, prefer storage, fall back to cache
+	bestc := true
 
 	for path, info := range f.paths {
 		if info.cache != cache && (bestc != info.cache || strict) {
@@ -200,8 +202,11 @@ func (f *FS) findBestPath(size uint64, cache bool, strict bool) StoragePath {
 		w := big.NewInt(avail)
 		w.Mul(w, big.NewInt(int64(info.weight)))
 		if w.Cmp(bestw) > 0 {
+			if info.cache == cache {
+				bestw = w
+			}
+
 			best = path
-			bestw = w
 			bestc = info.cache
 		}
 	}
@@ -242,7 +247,7 @@ func (f *FS) AllocSector(typ DataType, miner address.Address, ssize uint64, cach
 
 	need := overheadMul[typ] * ssize
 
-	p := f.findBestPath(need, cache, cache)
+	p := f.findBestPath(need, cache, false)
 	if p == "" {
 		return "", ErrNoSuitablePath
 	}

@@ -223,7 +223,7 @@ func (f *FS) ForceAllocSector(typ DataType, miner address.Address, ssize uint64,
 		if err != nil {
 			return "", xerrors.Errorf("looking for existing sector data: %w", err)
 		}
-		log.Warn("found existing sector data in %s, cleaning up", spath)
+		log.Warnf("found existing sector data in %s, cleaning up", spath)
 
 		if err := os.RemoveAll(string(spath)); err != nil {
 			return "", xerrors.Errorf("cleaning up sector data: %w", err)
@@ -275,6 +275,10 @@ func (f *FS) PrepareCacheMove(sector SectorPath, ssize uint64, tocache bool) (Se
 }
 
 func (f *FS) MoveSector(from, to SectorPath) error {
+	if from == to {
+		return nil
+	}
+
 	inf, err := os.Stat(string(from))
 	if err != nil {
 		return xerrors.Errorf("stat %s: %w", from, err)

@@ -24,6 +24,7 @@ type Interface interface {
 	ReadPieceFromSealedSector(sectorID uint64, offset uint64, size uint64, ticket []byte, commD []byte) (io.ReadCloser, error)
 
 	GetPath(string, string) (string, error)
+	CanCommit(sectorID uint64) (bool, error)
 	WorkerStats() WorkerStats
 	AddWorker(context.Context, WorkerCfg) (<-chan WorkerTask, error)
 	TaskDone(context.Context, uint64, SealRes) error

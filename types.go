@@ -31,6 +31,10 @@ type WorkerCfg struct {
 	NoPreCommit bool
 	NoCommit    bool
 
+	WorkerId   string
+	SectorId   uint64
+	SealStatus SealStatus
+
 	// TODO: 'cost' info, probably in terms of sealing + transfer speed
 }
 
@@ -55,7 +59,7 @@ type SectorBuilder struct {
 	taskCtr       uint64
 	remoteLk      sync.Mutex
 	remoteCtr     int
-	remotes       map[int]*remote
+	remotes       map[string]*remote
 	remoteResults map[uint64]chan<- SealRes
 
 	addPieceWait  int32
@@ -71,6 +75,9 @@ type SectorBuilder struct {
 
 type remote struct {
 	lk sync.Mutex
+
+	sealSectorID uint64
+	sealStatus   SealStatus
 
 	sealTasks chan<- WorkerTask
 	busy      uint64 // only for metrics

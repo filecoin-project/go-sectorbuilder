@@ -2,6 +2,8 @@ package sectorbuilder
 
 import (
 	"context"
+	"strconv"
+	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -11,6 +13,18 @@ type WorkerTaskType int
 const (
 	WorkerPreCommit WorkerTaskType = iota
 	WorkerCommit
+)
+
+type SealStatus int
+
+const (
+	StatusFree SealStatus = iota
+	StatusPreCommitting
+	StatusPreCommitDone
+	StatusPreCommitUploaded
+	StatusCommitting
+	StatusCommitDone
+	StatusCommitUploaded
 )
 
 type WorkerTask struct {
@@ -39,13 +53,19 @@ func (sb *SectorBuilder) AddWorker(ctx context.Context, cfg WorkerCfg) (<-chan W
 
 	taskCh := make(chan WorkerTask)
 	r := &remote{
-		sealTasks: taskCh,
-		busy:      0,
+		sealSectorID: cfg.SectorId,
+		sealStatus:   cfg.SealStatus,
+		sealTasks:    taskCh,
+		busy:         0,
 	}
 
-	sb.remoteCtr++
-	sb.remotes[sb.remoteCtr] = r
+	if cfg.WorkerId == "" {
+		sb.remoteCtr++
+		cfg.WorkerId = strconv.Itoa(sb.remoteCtr)
+	}
+	sb.remotes[cfg.WorkerId] = r
 
+	log.Infof("add a worker %v", cfg)
 	go sb.remoteWorker(ctx, r, cfg)
 
 	return taskCh, nil
@@ -98,9 +118,16 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 	for {
 		select {
 		case task := <-commits:
-			sb.doTask(ctx, r, task)
+			if task.task.SectorID == r.sealSectorID {
+				sb.doTask(ctx, r, task)
+			} else {
+				sb.returnTask(task)
+				time.Sleep(1 * time.Second)
+			}
 		case task := <-precommits:
-			sb.doTask(ctx, r, task)
+			if r.sealSectorID == 0 {
+				sb.doTask(ctx, r, task)
+			}
 		case <-ctx.Done():
 			return
 		case <-sb.stopping:
@@ -123,6 +150,7 @@ func (sb *SectorBuilder) doTask(ctx context.Context, r *remote, task workerCall)
 	// send the task
 	select {
 	case r.sealTasks <- task.task:
+		log.Infof("send task: %v", task.task)
 	case <-ctx.Done():
 		sb.returnTask(task)
 		return

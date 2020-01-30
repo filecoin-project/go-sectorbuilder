@@ -1,6 +1,8 @@
 package sectorbuilder
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -20,6 +22,7 @@ const PoStReservedWorkers = 1
 const PoRepProofPartitions = 10
 
 var lastSectorIdKey = datastore.NewKey("/last")
+var lastSealStatusKey = datastore.NewKey("/last-status")
 
 var log = logging.Logger("sectorbuilder")
 
@@ -36,6 +39,7 @@ func (rspco *JsonRSPCO) rspco() RawSealPreCommitOutput {
 	copy(out.CommR[:], rspco.CommR)
 	return out
 }
+
 
 type Config struct {
 	SectorSize uint64
@@ -96,7 +100,7 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 		precommitTasks: make(chan workerCall),
 		commitTasks:    make(chan workerCall),
 		remoteResults:  map[uint64]chan<- SealRes{},
-		remotes:        map[int]*remote{},
+		remotes:        map[string]*remote{},
 
 		stopping: make(chan struct{}),
 	}
@@ -108,9 +112,9 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	return sb, nil
 }
 
-func NewStandalone(cfg *Config) (*SectorBuilder, error) {
+func NewStandalone(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	sb := &SectorBuilder{
-		ds: nil,
+		ds: ds,
 
 		ssize: cfg.SectorSize,
 
@@ -118,7 +122,7 @@ func NewStandalone(cfg *Config) (*SectorBuilder, error) {
 		filesystem: openFs(cfg.Dir),
 
 		taskCtr:   1,
-		remotes:   map[int]*remote{},
+		remotes:   map[string]*remote{},
 		rateLimit: make(chan struct{}, cfg.WorkerThreads),
 		stopping:  make(chan struct{}),
 	}
@@ -312,6 +316,44 @@ func (sb *SectorBuilder) SetLastSectorID(id uint64) error {
 
 	sb.lastID = id
 	return nil
+}
+
+func (sb *SectorBuilder) GetLastSectorID() (uint64, error) {
+	b, err := sb.ds.Get(lastSectorIdKey)
+	lastUsedID := uint64(0)
+	switch err {
+	case nil:
+		i, err := strconv.ParseInt(string(b), 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		lastUsedID = uint64(i)
+	case datastore.ErrNotFound:
+		lastUsedID = sb.lastID
+	default:
+		return 0, err
+	}
+
+	return lastUsedID, err
+}
+
+func (sb *SectorBuilder) SetLastSealStatus(status SealStatus) error {
+	if err := sb.ds.Put(lastSealStatusKey, []byte(fmt.Sprint(status))); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sb *SectorBuilder) GetLastSealStatus() (SealStatus, error) {
+	intBytes, err := sb.ds.Get(lastSealStatusKey)
+	if err != nil {
+		return 0, err
+	}
+	byteBuff := bytes.NewBuffer(intBytes)
+	var status SealStatus
+	binary.Read(byteBuff, binary.BigEndian, &status)
+
+	return status, err
 }
 
 func migrate(from, to string, symlink bool) error {

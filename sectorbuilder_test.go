@@ -13,12 +13,13 @@ import (
 	"time"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
+	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 
 	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/fs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -383,5 +384,36 @@ func TestAcquireID(t *testing.T) {
 
 	if err := os.RemoveAll(dir); err != nil {
 		t.Error(err)
+	}
+}
+
+// TestVerifyEmpty tests a certain assumption
+func TestVerifyEmpty(t *testing.T) {
+	cSeed := [32]byte{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
+	sr := [32]byte{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 43, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
+	t0101, err := address.NewIDAddress(101)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	ok, err := sectorbuilder.ProofVerifier.VerifyFallbackPost(
+		context.TODO(),
+		1024,
+		sectorbuilder.NewSortedPublicSectorInfo([]ffi.PublicSectorInfo{
+			{SectorID: sectorSize, CommR: sr},
+			{SectorID: sectorSize, CommR: sr},
+		}),
+		cSeed[:],
+		nil, // 0s
+		nil, // 0s
+		t0101,
+		2) //fault everything
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	if !ok {
+		t.Error("proof not ok")
 	}
 }

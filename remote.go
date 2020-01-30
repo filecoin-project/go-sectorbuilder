@@ -107,11 +107,11 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 	}()
 
 	precommits := sb.precommitTasks
-	if cfg.NoPreCommit {
+	if cfg.NoPreCommit || r.sealSectorID != 0 {
 		precommits = nil
 	}
 	commits := sb.commitTasks
-	if cfg.NoCommit {
+	if cfg.NoCommit || r.sealSectorID == 0 {
 		commits = nil
 	}
 
@@ -122,12 +122,10 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 				sb.doTask(ctx, r, task)
 			} else {
 				sb.returnTask(task)
-				time.Sleep(1 * time.Second)
+				time.Sleep(3 * time.Second)
 			}
 		case task := <-precommits:
-			if r.sealSectorID == 0 {
-				sb.doTask(ctx, r, task)
-			}
+			sb.doTask(ctx, r, task)
 		case <-ctx.Done():
 			return
 		case <-sb.stopping:

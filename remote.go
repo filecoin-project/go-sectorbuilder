@@ -116,15 +116,18 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 	}
 
 	for {
+		var lastTask workerCall
 		select {
 		case task := <-commits:
 			if task.task.SectorID == r.sealSectorID {
+				lastTask = task
 				sb.doTask(ctx, r, task)
 			} else {
 				sb.returnTask(task)
 				time.Sleep(1 * time.Second)
 			}
 		case task := <-precommits:
+			lastTask = task
 			sb.doTask(ctx, r, task)
 		case <-ctx.Done():
 			return
@@ -135,6 +138,14 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 		if r.sealSectorID == 0 {
 			r.lk.Lock()
 			r.busy = 0
+
+			switch lastTask.task.Type {
+			case WorkerPreCommit:
+				r.sealStatus = StatusPreCommitDone
+			case WorkerCommit:
+				r.sealSectorID = 0
+				r.sealStatus = StatusFree
+			}
 			r.lk.Unlock()
 		}
 	}
@@ -158,6 +169,14 @@ func (sb *SectorBuilder) doTask(ctx context.Context, r *remote, task workerCall)
 
 	r.lk.Lock()
 	r.busy = task.task.TaskID
+
+	r.sealSectorID = task.task.SectorID
+	switch task.task.Type {
+	case WorkerPreCommit:
+		r.sealStatus = StatusPreCommitting
+	case WorkerCommit:
+		r.sealStatus = StatusCommitting
+	}
 	r.lk.Unlock()
 
 	// wait for the result

@@ -122,7 +122,7 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 				sb.doTask(ctx, r, task)
 			} else {
 				sb.returnTask(task)
-				time.Sleep(3 * time.Second)
+				time.Sleep(1 * time.Second)
 			}
 		case task := <-precommits:
 			sb.doTask(ctx, r, task)

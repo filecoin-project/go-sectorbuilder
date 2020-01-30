@@ -145,8 +145,6 @@ func (f *FS) Init() error {
 	return nil
 }
 
-// TODO: fix the locking situation
-
 func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out SectorPath, err error) {
 	// TODO: consider keeping some sort of index at some point
 
@@ -177,7 +175,7 @@ func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out Sec
 	return out, nil
 }
 
-func (f *FS) findBestPath(size uint64, cache bool, strict bool) StoragePath {
+func (f *FS) findBestPath(size uint64, cache bool, strict bool) (StoragePath, error) {
 	var best StoragePath
 	bestw := big.NewInt(0)
 
@@ -211,7 +209,15 @@ func (f *FS) findBestPath(size uint64, cache bool, strict bool) StoragePath {
 		}
 	}
 
-	return best
+	if best == "" {
+		if cache {
+			return best, xerrors.Errorf("no available cache: %w", ErrNoSuitablePath)
+		}
+
+		return best, xerrors.Errorf("no available storage: %w", ErrNoSuitablePath)
+	}
+
+	return best, nil
 }
 
 func (f *FS) ForceAllocSector(typ DataType, miner address.Address, ssize uint64, cache bool, id uint64) (SectorPath, error) {
@@ -247,9 +253,9 @@ func (f *FS) AllocSector(typ DataType, miner address.Address, ssize uint64, cach
 
 	need := overheadMul[typ] * ssize
 
-	p := f.findBestPath(need, cache, false)
-	if p == "" {
-		return "", ErrNoSuitablePath
+	p, err := f.findBestPath(need, cache, false)
+	if err != nil {
+		return "", err
 	}
 
 	sp := p.Sector(typ, miner, id)
@@ -258,10 +264,11 @@ func (f *FS) AllocSector(typ DataType, miner address.Address, ssize uint64, cach
 }
 
 func (f *FS) PrepareCacheMove(sector SectorPath, ssize uint64, tocache bool) (SectorPath, error) {
-	p := f.findBestPath(ssize, tocache, true)
-	if p == "" {
-		return "", ErrNoSuitablePath
+	p, err := f.findBestPath(ssize, tocache, true)
+	if err != nil {
+		return "", err
 	}
+
 	m, err := sector.miner()
 	if err != nil {
 		return "", err

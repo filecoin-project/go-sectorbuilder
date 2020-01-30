@@ -132,9 +132,11 @@ func (sb *SectorBuilder) remoteWorker(ctx context.Context, r *remote, cfg Worker
 			return
 		}
 
-		r.lk.Lock()
-		r.busy = 0
-		r.lk.Unlock()
+		if r.sealSectorID == 0 {
+			r.lk.Lock()
+			r.busy = 0
+			r.lk.Unlock()
+		}
 	}
 }
 

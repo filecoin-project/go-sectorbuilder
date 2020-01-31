@@ -6,6 +6,8 @@ import (
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/ipfs/go-datastore"
+
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 type SortedPublicSectorInfo = ffi.SortedPublicSectorInfo
@@ -64,7 +66,7 @@ type SectorBuilder struct {
 	unsealWait    int32
 
 	fsLk       sync.Mutex //nolint: struckcheck
-	filesystem *fs        // TODO: multi-fs support
+	filesystem *fs.FS
 
 	stopping chan struct{}
 }

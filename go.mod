@@ -13,6 +13,7 @@ require (
 	github.com/ipfs/go-datastore v0.1.1
 	github.com/ipfs/go-ipld-format v0.0.2 // indirect
 	github.com/ipfs/go-log v1.0.0
+	github.com/ipfs/go-log/v2 v2.0.2
 	github.com/jbenet/goprocess v0.1.3 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.9 // indirect

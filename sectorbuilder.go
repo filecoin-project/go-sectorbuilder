@@ -1,10 +1,9 @@
 package sectorbuilder
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strconv"
 	"sync/atomic"
 
@@ -12,8 +11,9 @@ import (
 	"github.com/filecoin-project/go-address"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
-	dcopy "github.com/otiai10/copy"
 	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 const PoStReservedWorkers = 1
@@ -46,8 +46,8 @@ type Config struct {
 	NoCommit       bool
 	NoPreCommit    bool
 
-	Dir string
-	_   struct{} // guard against nameless init
+	Paths []fs.PathConfig
+	_     struct{} // guard against nameless init
 }
 
 func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
@@ -84,7 +84,7 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 		ssize:  cfg.SectorSize,
 		lastID: lastUsedID,
 
-		filesystem: openFs(cfg.Dir),
+		filesystem: fs.OpenFs(cfg.Paths),
 
 		Miner: cfg.Miner,
 
@@ -101,7 +101,7 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 		stopping: make(chan struct{}),
 	}
 
-	if err := sb.filesystem.init(); err != nil {
+	if err := sb.filesystem.Init(); err != nil {
 		return nil, xerrors.Errorf("initializing sectorbuilder filesystem: %w", err)
 	}
 
@@ -115,7 +115,7 @@ func NewStandalone(cfg *Config) (*SectorBuilder, error) {
 		ssize: cfg.SectorSize,
 
 		Miner:      cfg.Miner,
-		filesystem: openFs(cfg.Dir),
+		filesystem: fs.OpenFs(cfg.Paths),
 
 		taskCtr:   1,
 		remotes:   map[int]*remote{},
@@ -123,7 +123,7 @@ func NewStandalone(cfg *Config) (*SectorBuilder, error) {
 		stopping:  make(chan struct{}),
 	}
 
-	if err := sb.filesystem.init(); err != nil {
+	if err := sb.filesystem.Init(); err != nil {
 		return nil, xerrors.Errorf("initializing sectorbuilder filesystem: %w", err)
 	}
 
@@ -246,21 +246,21 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faul
 			continue
 		}
 
-		cachePath, err := sb.sectorCacheDir(s.SectorID)
+		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorID) // TODO: LOCK!
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache path for sector %d: %w", s.SectorID, err)
+			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorID, err)
 		}
 
-		sealedPath, err := sb.SealedSectorPath(s.SectorID)
+		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorID)
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed path for sector %d: %w", s.SectorID, err)
+			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorID, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
 			SectorID:         s.SectorID,
 			CommR:            s.CommR,
-			CacheDirPath:     cachePath,
-			SealedSectorPath: sealedPath,
+			CacheDirPath:     string(cachePath),
+			SealedSectorPath: string(sealedPath),
 		})
 	}
 	return ffi.NewSortedPrivateSectorInfo(out...), nil
@@ -274,17 +274,87 @@ func fallbackPostChallengeCount(sectors uint64, faults uint64) uint64 {
 	return challengeCount
 }
 
+func (sb *SectorBuilder) FinalizeSector(ctx context.Context, id uint64) error {
+	sealed, err := sb.filesystem.FindSector(fs.DataSealed, sb.Miner, id)
+	if err != nil {
+		return xerrors.Errorf("getting sealed sector: %w", err)
+	}
+	cache, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, id)
+	if err != nil {
+		return xerrors.Errorf("getting sector cache: %w", err)
+	}
+
+	// todo: flag to just remove
+	staged, err := sb.filesystem.FindSector(fs.DataStaging, sb.Miner, id)
+	if err != nil {
+		return xerrors.Errorf("getting staged sector: %w", err)
+	}
+
+	{
+		if err := sb.filesystem.Lock(ctx, sealed); err != nil {
+			return err
+		}
+		defer sb.filesystem.Unlock(sealed)
+
+		if err := sb.filesystem.Lock(ctx, cache); err != nil {
+			return err
+		}
+		defer sb.filesystem.Unlock(cache)
+
+		if err := sb.filesystem.Lock(ctx, staged); err != nil {
+			return err
+		}
+		defer sb.filesystem.Unlock(staged)
+	}
+
+	sealedDest, err := sb.filesystem.PrepareCacheMove(sealed, sb.ssize, false)
+	if err != nil {
+		return xerrors.Errorf("prepare move sealed: %w", err)
+	}
+	defer sb.filesystem.Release(sealedDest, sb.ssize)
+
+	cacheDest, err := sb.filesystem.PrepareCacheMove(cache, sb.ssize, false)
+	if err != nil {
+		return xerrors.Errorf("prepare move cache: %w", err)
+	}
+	defer sb.filesystem.Release(cacheDest, sb.ssize)
+
+	stagedDest, err := sb.filesystem.PrepareCacheMove(staged, sb.ssize, false)
+	if err != nil {
+		return xerrors.Errorf("prepare move staged: %w", err)
+	}
+	defer sb.filesystem.Release(stagedDest, sb.ssize)
+
+	if err := sb.filesystem.MoveSector(sealed, sealedDest); err != nil {
+		return xerrors.Errorf("move sealed: %w", err)
+	}
+	if err := sb.filesystem.MoveSector(cache, cacheDest); err != nil {
+		return xerrors.Errorf("move cache: %w", err)
+	}
+	if err := sb.filesystem.MoveSector(staged, stagedDest); err != nil {
+		return xerrors.Errorf("move staged: %w", err)
+	}
+
+	return nil
+}
+
+func (sb *SectorBuilder) DropStaged(ctx context.Context, id uint64) error {
+	sp, err := sb.SectorPath(fs.DataStaging, id)
+	if err != nil {
+		return xerrors.Errorf("finding staged sector: %w", err)
+	}
+
+	if err := sb.filesystem.Lock(ctx, sp); err != nil {
+		return err
+	}
+	defer sb.filesystem.Unlock(sp)
+
+	return os.RemoveAll(string(sp))
+}
+
 func (sb *SectorBuilder) ImportFrom(osb *SectorBuilder, symlink bool) error {
-	if err := migrate(osb.filesystem.pathFor(dataCache), sb.filesystem.pathFor(dataCache), symlink); err != nil {
-		return err
-	}
-
-	if err := migrate(osb.filesystem.pathFor(dataStaging), sb.filesystem.pathFor(dataStaging), symlink); err != nil {
-		return err
-	}
-
-	if err := migrate(osb.filesystem.pathFor(dataSealed), sb.filesystem.pathFor(dataSealed), symlink); err != nil {
-		return err
+	if err := osb.filesystem.MigrateTo(sb.filesystem, sb.ssize, symlink); err != nil {
+		return xerrors.Errorf("migrating sector data: %w", err)
 	}
 
 	val, err := osb.ds.Get(lastSectorIdKey)
@@ -312,61 +382,6 @@ func (sb *SectorBuilder) SetLastSectorID(id uint64) error {
 
 	sb.lastID = id
 	return nil
-}
-
-func migrate(from, to string, symlink bool) error {
-	st, err := os.Stat(from)
-	if err != nil {
-		return err
-	}
-
-	if st.IsDir() {
-		return migrateDir(from, to, symlink)
-	}
-	return migrateFile(from, to, symlink)
-}
-
-func migrateDir(from, to string, symlink bool) error {
-	tost, err := os.Stat(to)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-
-		if err := os.MkdirAll(to, 0755); err != nil {
-			return err
-		}
-	} else if !tost.IsDir() {
-		return xerrors.Errorf("target %q already exists and is a file (expected directory)")
-	}
-
-	dirents, err := ioutil.ReadDir(from)
-	if err != nil {
-		return err
-	}
-
-	for _, inf := range dirents {
-		n := inf.Name()
-		if inf.IsDir() {
-			if err := migrate(filepath.Join(from, n), filepath.Join(to, n), symlink); err != nil {
-				return err
-			}
-		} else {
-			if err := migrate(filepath.Join(from, n), filepath.Join(to, n), symlink); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func migrateFile(from, to string, symlink bool) error {
-	if symlink {
-		return os.Symlink(from, to)
-	}
-
-	return dcopy.Copy(from, to)
 }
 
 func (sb *SectorBuilder) Stop() {

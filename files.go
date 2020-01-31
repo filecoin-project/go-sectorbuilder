@@ -1,7 +1,7 @@
 package sectorbuilder
 
 import (
-	"fmt"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -10,57 +10,37 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 func (sb *SectorBuilder) SectorName(sectorID uint64) string {
-	return fmt.Sprintf("s-%s-%d", sb.Miner, sectorID)
+	return fs.SectorName(sb.Miner, sectorID)
 }
 
-func (sb *SectorBuilder) StagedSectorPath(sectorID uint64) string {
-	return filepath.Join(sb.filesystem.pathFor(dataStaging), sb.SectorName(sectorID))
+func (sb *SectorBuilder) SectorPath(typ fs.DataType, sectorID uint64) (fs.SectorPath, error) {
+	return sb.filesystem.FindSector(typ, sb.Miner, sectorID)
 }
 
-func (sb *SectorBuilder) unsealedSectorPath(sectorID uint64) string {
-	return filepath.Join(sb.filesystem.pathFor(dataUnsealed), sb.SectorName(sectorID))
+func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorID uint64, cache bool) (fs.SectorPath, error) {
+	return sb.filesystem.AllocSector(typ, sb.Miner, sb.ssize, cache, sectorID)
 }
 
-func (sb *SectorBuilder) stagedSectorFile(sectorID uint64) (*os.File, error) {
-	return os.OpenFile(sb.StagedSectorPath(sectorID), os.O_RDWR|os.O_CREATE, 0644)
+func (sb *SectorBuilder) ReleaseSector(typ fs.DataType, path fs.SectorPath) {
+	sb.filesystem.Release(path, sb.ssize)
 }
 
-func (sb *SectorBuilder) SealedSectorPath(sectorID uint64) (string, error) {
-	path := filepath.Join(sb.filesystem.pathFor(dataSealed), sb.SectorName(sectorID))
-
-	return path, nil
-}
-
-func (sb *SectorBuilder) sectorCacheDir(sectorID uint64) (string, error) {
-	dir := filepath.Join(sb.filesystem.pathFor(dataCache), sb.SectorName(sectorID))
-
-	err := os.Mkdir(dir, 0755)
-	if os.IsExist(err) {
-		err = nil
-	}
-
-	return dir, err
-}
-
-func (sb *SectorBuilder) GetPath(typ string, sectorName string) (string, error) {
-	_, found := overheadMul[dataType(typ)]
-	if !found {
-		return "", xerrors.Errorf("unknown sector type: %s", typ)
-	}
-
-	return filepath.Join(sb.filesystem.pathFor(dataType(typ)), sectorName), nil
-}
-
-func (sb *SectorBuilder) TrimCache(sectorID uint64) error {
-	dir, err := sb.sectorCacheDir(sectorID)
+func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID uint64) error {
+	dir, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, sectorID)
 	if err != nil {
 		return xerrors.Errorf("getting cache dir: %w", err)
 	}
+	if err := sb.filesystem.Lock(ctx, dir); err != nil {
+		return xerrors.Errorf("acquiring sector lock: %w", err)
+	}
+	defer sb.filesystem.Unlock(dir)
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := ioutil.ReadDir(string(dir))
 	if err != nil {
 		return xerrors.Errorf("readdir: %w", err)
 	}
@@ -73,7 +53,7 @@ func (sb *SectorBuilder) TrimCache(sectorID uint64) error {
 			continue
 		}
 
-		if err := os.Remove(filepath.Join(dir, file.Name())); err != nil {
+		if err := os.Remove(filepath.Join(string(dir), file.Name())); err != nil {
 			return xerrors.Errorf("rm %s: %w", file.Name(), err)
 		}
 	}
@@ -82,12 +62,12 @@ func (sb *SectorBuilder) TrimCache(sectorID uint64) error {
 }
 
 func (sb *SectorBuilder) CanCommit(sectorID uint64) (bool, error) {
-	dir, err := sb.sectorCacheDir(sectorID)
+	dir, err := sb.SectorPath(fs.DataCache, sectorID)
 	if err != nil {
 		return false, xerrors.Errorf("getting cache dir: %w", err)
 	}
 
-	ents, err := ioutil.ReadDir(dir)
+	ents, err := ioutil.ReadDir(string(dir))
 	if err != nil {
 		return false, err
 	}

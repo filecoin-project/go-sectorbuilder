@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"path/filepath"
@@ -34,11 +35,11 @@ func (f *FS) reserve(typ DataType, path StoragePath, size uint64) error {
 	return nil
 }
 
-func (f *FS) Release(path SectorPath, sectorSize uint64) {
+func (f *FS) Release(path SectorPath, sectorSize abi.SectorSize) {
 	f.lk.Lock()
 	defer f.lk.Unlock()
 
-	f.reserved[path.storage()][path.typ()] -= overheadMul[path.typ()] * sectorSize
+	f.reserved[path.storage()][path.typ()] -= overheadMul[path.typ()] * uint64(sectorSize)
 }
 
 func (f *FS) List(path StoragePath, typ DataType) ([]SectorPath, error) {

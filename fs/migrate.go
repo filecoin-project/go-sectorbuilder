@@ -5,11 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	dcopy "github.com/otiai10/copy"
 	"golang.org/x/xerrors"
 )
 
-func (f *FS) MigrateTo(to *FS, ssize uint64, symlink bool) error {
+func (f *FS) MigrateTo(to *FS, ssize abi.SectorSize, symlink bool) error {
 	for path := range f.paths {
 		for _, dataType := range types {
 			sectors, err := f.List(path, dataType)
@@ -27,7 +28,7 @@ func (f *FS) MigrateTo(to *FS, ssize uint64, symlink bool) error {
 	return nil
 }
 
-func (f *FS) migrateSector(to *FS, ssize uint64, sector SectorPath, symlink bool) error {
+func (f *FS) migrateSector(to *FS, ssize abi.SectorSize, sector SectorPath, symlink bool) error {
 	id, err := sector.id()
 	if err != nil {
 		return err

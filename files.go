@@ -9,20 +9,21 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
-func (sb *SectorBuilder) SectorName(sectorID uint64) string {
+func (sb *SectorBuilder) SectorName(sectorID abi.SectorNumber) string {
 	return fs.SectorName(sb.Miner, sectorID)
 }
 
-func (sb *SectorBuilder) SectorPath(typ fs.DataType, sectorID uint64) (fs.SectorPath, error) {
+func (sb *SectorBuilder) SectorPath(typ fs.DataType, sectorID abi.SectorNumber) (fs.SectorPath, error) {
 	return sb.filesystem.FindSector(typ, sb.Miner, sectorID)
 }
 
-func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorID uint64, cache bool) (fs.SectorPath, error) {
+func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorID abi.SectorNumber, cache bool) (fs.SectorPath, error) {
 	return sb.filesystem.AllocSector(typ, sb.Miner, sb.ssize, cache, sectorID)
 }
 
@@ -30,7 +31,7 @@ func (sb *SectorBuilder) ReleaseSector(typ fs.DataType, path fs.SectorPath) {
 	sb.filesystem.Release(path, sb.ssize)
 }
 
-func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID uint64) error {
+func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID abi.SectorNumber) error {
 	dir, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, sectorID)
 	if err != nil {
 		return xerrors.Errorf("getting cache dir: %w", err)
@@ -61,7 +62,7 @@ func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID uint64) error {
 	return nil
 }
 
-func (sb *SectorBuilder) CanCommit(sectorID uint64) (bool, error) {
+func (sb *SectorBuilder) CanCommit(sectorID abi.SectorNumber) (bool, error) {
 	dir, err := sb.SectorPath(fs.DataCache, sectorID)
 	if err != nil {
 		return false, xerrors.Errorf("getting cache dir: %w", err)

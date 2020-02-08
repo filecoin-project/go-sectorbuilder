@@ -5,6 +5,7 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
@@ -40,7 +41,7 @@ type SectorBuilder struct {
 	ds   datastore.Batching
 	idLk sync.Mutex
 
-	ssize  uint64
+	ssize  abi.SectorSize
 	lastID uint64
 
 	Miner address.Address

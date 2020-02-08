@@ -3,10 +3,11 @@ package sectorbuilder
 import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-sectorbuilder/fs"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 )
 
-func TempSectorbuilderDir(paths []fs.PathConfig, sectorSize uint64, ds datastore.Batching) (*SectorBuilder, error) {
+func TempSectorbuilderDir(paths []fs.PathConfig, sectorSize abi.SectorSize, ds datastore.Batching) (*SectorBuilder, error) {
 	addr, err := address.NewFromString("t0123")
 	if err != nil {
 		return nil, err

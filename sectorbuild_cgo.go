@@ -8,15 +8,17 @@ import (
 	"os"
 	"sync/atomic"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/specs-actors/actors/abi"
+
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	fs "github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 var _ Interface = &SectorBuilder{}
 
-func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize uint64, sectorId uint64, file io.Reader, existingPieceSizes []uint64) (PublicPieceInfo, error) {
+func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize abi.UnpaddedPieceSize, sectorId abi.SectorNumber, file io.Reader, existingPieceSizes []abi.UnpaddedPieceSize) (PublicPieceInfo, error) {
 	atomic.AddInt32(&sb.addPieceWait, 1)
 	ret := sb.RateLimit()
 	atomic.AddInt32(&sb.addPieceWait, -1)
@@ -58,7 +60,12 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize uint64, sectorI
 	}
 	defer sb.filesystem.Unlock(stagedPath)
 
-	_, _, commP, err := ffi.WriteWithAlignment(f, pieceSize, stagedFile, existingPieceSizes)
+	sizes := make([]uint64, len(existingPieceSizes))
+	for i, size := range existingPieceSizes {
+		sizes[i] = uint64(size)
+	}
+
+	_, _, commP, err := ffi.WriteWithAlignment(f, uint64(pieceSize), stagedFile, sizes)
 	if err != nil {
 		return PublicPieceInfo{}, err
 	}
@@ -72,12 +79,12 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize uint64, sectorI
 	}
 
 	return PublicPieceInfo{
-		Size:  pieceSize,
+		Size:  uint64(pieceSize),
 		CommP: commP,
 	}, werr()
 }
 
-func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorID uint64, offset uint64, size uint64, ticket []byte, commD []byte) (io.ReadCloser, error) {
+func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorID abi.SectorNumber, offset uint64, size uint64, ticket []byte, commD []byte) (io.ReadCloser, error) {
 	sfs := sb.filesystem
 
 	// TODO: this needs to get smarter when we start supporting partial unseals
@@ -128,12 +135,12 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorID
 		var tkt [CommLen]byte
 		copy(tkt[:], ticket)
 
-		err = ffi.Unseal(sb.ssize,
+		err = ffi.Unseal(uint64(sb.ssize),
 			PoRepProofPartitions,
 			string(cacheDir),
 			string(sealedPath),
 			string(unsealedPath),
-			sectorID,
+			uint64(sectorID),
 			addressToProverID(sb.Miner),
 			tkt,
 			commd)
@@ -162,7 +169,7 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorID
 	}, nil
 }
 
-func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, ticket SealTicket, pieces []PublicPieceInfo) (RawSealPreCommitOutput, error) {
+func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID abi.SectorNumber, ticket SealTicket, pieces []PublicPieceInfo) (RawSealPreCommitOutput, error) {
 	sfs := sb.filesystem
 
 	cacheDir, err := sfs.ForceAllocSector(fs.DataCache, sb.Miner, sb.ssize, true, sectorID)
@@ -241,11 +248,11 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 		return RawSealPreCommitOutput{}, err
 	}
 
-	var sum uint64
+	var sum abi.UnpaddedPieceSize
 	for _, piece := range pieces {
-		sum += piece.Size
+		sum += abi.UnpaddedPieceSize(piece.Size)
 	}
-	ussize := UserBytesForSectorSize(sb.ssize)
+	ussize := abi.PaddedPieceSize(sb.ssize).Unpadded()
 	if sum != ussize {
 		return RawSealPreCommitOutput{}, xerrors.Errorf("aggregated piece sizes don't match sector size: %d != %d (%d)", sum, ussize, int64(ussize-sum))
 	}
@@ -256,12 +263,12 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 	}
 	// TODO: context cancellation respect
 	rspco, err := ffi.SealPreCommit(
-		sb.ssize,
+		uint64(sb.ssize),
 		PoRepProofPartitions,
 		string(cacheDir),
 		string(stagedPath),
 		string(sealedPath),
-		sectorID,
+		uint64(sectorID),
 		addressToProverID(sb.Miner),
 		ticket.TicketBytes,
 		pieces,
@@ -273,7 +280,7 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorID uint64, tic
 	return RawSealPreCommitOutput(rspco), nil
 }
 
-func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorID uint64, ticket SealTicket, seed SealSeed, pieces []PublicPieceInfo, rspco RawSealPreCommitOutput) (proof []byte, err error) {
+func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorID abi.SectorNumber, ticket SealTicket, seed SealSeed, pieces []PublicPieceInfo, rspco RawSealPreCommitOutput) (proof []byte, err error) {
 	atomic.AddInt32(&sb.commitWait, -1)
 
 	defer func() {
@@ -290,10 +297,10 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorID uint64, t
 	defer sb.filesystem.Unlock(cacheDir)
 
 	proof, err = ffi.SealCommit(
-		sb.ssize,
+		uint64(sb.ssize),
 		PoRepProofPartitions,
 		string(cacheDir),
-		sectorID,
+		uint64(sectorID),
 		addressToProverID(sb.Miner),
 		ticket.TicketBytes,
 		seed.TicketBytes,
@@ -310,7 +317,7 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorID uint64, t
 	return proof, nil
 }
 
-func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorID uint64, ticket SealTicket, seed SealSeed, pieces []PublicPieceInfo, rspco RawSealPreCommitOutput) (proof []byte, err error) {
+func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorID abi.SectorNumber, ticket SealTicket, seed SealSeed, pieces []PublicPieceInfo, rspco RawSealPreCommitOutput) (proof []byte, err error) {
 	call := workerCall{
 		task: WorkerTask{
 			Type:       WorkerCommit,
@@ -368,10 +375,10 @@ func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo SortedPublicSectorInfo, 
 
 	proverID := addressToProverID(sb.Miner)
 
-	return ffi.GeneratePoSt(sb.ssize, proverID, privsects, cseed, winners)
+	return ffi.GeneratePoSt(uint64(sb.ssize), proverID, privsects, cseed, winners)
 }
 
-func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo SortedPublicSectorInfo, challengeSeed [CommLen]byte, faults []uint64) ([]EPostCandidate, error) {
+func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo SortedPublicSectorInfo, challengeSeed [CommLen]byte, faults []abi.SectorNumber) ([]EPostCandidate, error) {
 	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
 	if err != nil {
 		return nil, err
@@ -380,10 +387,10 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo SortedPublicSectorIn
 	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), uint64(len(faults)))
 
 	proverID := addressToProverID(sb.Miner)
-	return ffi.GenerateCandidates(sb.ssize, proverID, challengeSeed, challengeCount, privsectors)
+	return ffi.GenerateCandidates(uint64(sb.ssize), proverID, challengeSeed, challengeCount, privsectors)
 }
 
-func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo SortedPublicSectorInfo, challengeSeed [CommLen]byte, faults []uint64) ([]EPostCandidate, []byte, error) {
+func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo SortedPublicSectorInfo, challengeSeed [CommLen]byte, faults []abi.SectorNumber) ([]EPostCandidate, []byte, error) {
 	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
 	if err != nil {
 		return nil, nil, err
@@ -392,11 +399,11 @@ func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo SortedPublicSectorInfo,
 	challengeCount := fallbackPostChallengeCount(uint64(len(sectorInfo.Values())), uint64(len(faults)))
 
 	proverID := addressToProverID(sb.Miner)
-	candidates, err := ffi.GenerateCandidates(sb.ssize, proverID, challengeSeed, challengeCount, privsectors)
+	candidates, err := ffi.GenerateCandidates(uint64(sb.ssize), proverID, challengeSeed, challengeCount, privsectors)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	proof, err := ffi.GeneratePoSt(sb.ssize, proverID, privsectors, challengeSeed, candidates)
+	proof, err := ffi.GeneratePoSt(uint64(sb.ssize), proverID, privsectors, challengeSeed, candidates)
 	return candidates, proof, err
 }

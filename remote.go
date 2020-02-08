@@ -3,6 +3,7 @@ package sectorbuilder
 import (
 	"context"
 
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 )
 
@@ -17,7 +18,7 @@ type WorkerTask struct {
 	Type   WorkerTaskType
 	TaskID uint64
 
-	SectorID uint64
+	SectorID abi.SectorNumber
 
 	// preCommit
 	SealTicket SealTicket

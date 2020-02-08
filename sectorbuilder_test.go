@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-sectorbuilder/fs"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 
@@ -29,10 +30,10 @@ func init() {
 	logging.SetLogLevel("*", "INFO") //nolint: errcheck
 }
 
-const sectorSize = 1024
+const sectorSize = abi.SectorSize(1024)
 
 type seal struct {
-	sid uint64
+	sid abi.SectorNumber
 
 	pco sectorbuilder.RawSealPreCommitOutput
 	ppi sectorbuilder.PublicPieceInfo
@@ -40,12 +41,12 @@ type seal struct {
 	ticket sectorbuilder.SealTicket
 }
 
-func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, sid uint64, done func()) {
-	dlen := sectorbuilder.UserBytesForSectorSize(sectorSize)
+func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, sid abi.SectorNumber, done func()) {
+	dlen := abi.UnpaddedPieceSize(sectorSize)
 
 	var err error
 	r := io.LimitReader(rand.New(rand.NewSource(42+int64(sid))), int64(dlen))
-	s.ppi, err = sb.AddPiece(context.TODO(), dlen, sid, r, []uint64{})
+	s.ppi, err = sb.AddPiece(context.TODO(), dlen, sid, r, []abi.UnpaddedPieceSize{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -92,14 +93,14 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	ppi := make([]ffi.PublicSectorInfo, len(seals))
 	for i, s := range seals {
 		ppi[i] = ffi.PublicSectorInfo{
-			SectorID: s.sid,
+			SectorID: uint64(s.sid),
 			CommR:    s.pco.CommR,
 		}
 	}
 
 	ssi := sectorbuilder.NewSortedPublicSectorInfo(ppi)
 
-	candndates, err := sb.GenerateEPostCandidates(ssi, cSeed, []uint64{})
+	candndates, err := sb.GenerateEPostCandidates(ssi, cSeed, []abi.SectorNumber{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -133,7 +134,7 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 // go test -run=^TestDownloadParams
 //
 func TestDownloadParams(t *testing.T) {
-	if err := paramfetch.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
 		t.Fatalf("%+v", err)
 	}
 }
@@ -144,7 +145,7 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -235,7 +236,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -299,7 +300,7 @@ func TestSealAndVerify2(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(sectorSize); err != nil {
+	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -401,8 +402,8 @@ func TestVerifyEmpty(t *testing.T) {
 		context.TODO(),
 		1024,
 		sectorbuilder.NewSortedPublicSectorInfo([]ffi.PublicSectorInfo{
-			{SectorID: sectorSize, CommR: sr},
-			{SectorID: sectorSize, CommR: sr},
+			{SectorID: uint64(sectorSize), CommR: sr},
+			{SectorID: uint64(sectorSize), CommR: sr},
 		}),
 		cSeed[:],
 		nil, // 0s

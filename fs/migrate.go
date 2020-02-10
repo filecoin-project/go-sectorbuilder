@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -9,7 +10,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (f *FS) MigrateTo(to *FS, ssize uint64, symlink bool) error {
+func (f *FS) MigrateTo(to *FS, ssize abi.SectorSize, symlink bool) error {
 	for path := range f.paths {
 		for _, dataType := range types {
 			sectors, err := f.List(path, dataType)
@@ -27,8 +28,8 @@ func (f *FS) MigrateTo(to *FS, ssize uint64, symlink bool) error {
 	return nil
 }
 
-func (f *FS) migrateSector(to *FS, ssize uint64, sector SectorPath, symlink bool) error {
-	id, err := sector.id()
+func (f *FS) migrateSector(to *FS, ssize abi.SectorSize, sector SectorPath, symlink bool) error {
+	id, err := sector.num()
 	if err != nil {
 		return err
 	}

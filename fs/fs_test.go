@@ -9,7 +9,7 @@ import (
 func TestPathUtils(t *testing.T) {
 	sp := SectorPath("/aoe/aaa-oeu/cache/s-t0999-84")
 
-	i, err := sp.id()
+	i, err := sp.num()
 	require.NoError(t, err)
 	require.EqualValues(t, 84, i)
 

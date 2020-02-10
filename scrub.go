@@ -1,6 +1,7 @@
 package sectorbuilder
 
 import (
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 )
 
 type Fault struct {
-	SectorID uint64
+	SectorNum abi.SectorNumber
 
 	Err error
 }
@@ -21,17 +22,17 @@ func (sb *SectorBuilder) Scrub(sectorSet sectorbuilder.SortedPublicSectorInfo) [
 	var faults []*Fault
 
 	for _, sector := range sectorSet.Values() {
-		err := sb.checkSector(sector.SectorID)
+		err := sb.checkSector(sector.SectorNum)
 		if err != nil {
-			faults = append(faults, &Fault{SectorID: sector.SectorID, Err: err})
+			faults = append(faults, &Fault{SectorNum: sector.SectorNum, Err: err})
 		}
 	}
 
 	return faults
 }
 
-func (sb *SectorBuilder) checkSector(sectorID uint64) error {
-	scache, err := sb.SectorPath(fs.DataCache, sectorID)
+func (sb *SectorBuilder) checkSector(sectorNum abi.SectorNumber) error {
+	scache, err := sb.SectorPath(fs.DataCache, sectorNum)
 	if err != nil {
 		return xerrors.Errorf("getting sector cache dir: %w", err)
 	}
@@ -40,7 +41,9 @@ func (sb *SectorBuilder) checkSector(sectorID uint64) error {
 	if err := assertFile(filepath.Join(cache, "p_aux"), 96, 96); err != nil {
 		return err
 	}
-	if err := assertFile(filepath.Join(cache, "sc-01-data-tree-r-last.dat"), (2*sb.ssize)-32, (2*sb.ssize)-32); err != nil {
+
+	ssizeRaw := uint64(sb.ssize)
+	if err := assertFile(filepath.Join(cache, "sc-01-data-tree-r-last.dat"), (2*ssizeRaw)-32, (2*ssizeRaw)-32); err != nil {
 		return err
 	}
 
@@ -57,12 +60,12 @@ func (sb *SectorBuilder) checkSector(sectorID uint64) error {
 		return xerrors.Errorf("found %d files in %s, expected 3", len(dent), cache)
 	}
 
-	sealed, err := sb.SectorPath(fs.DataSealed, sectorID)
+	sealed, err := sb.SectorPath(fs.DataSealed, sectorNum)
 	if err != nil {
 		return xerrors.Errorf("getting sealed sector paths: %w", err)
 	}
 
-	if err := assertFile(filepath.Join(string(sealed)), sb.ssize, sb.ssize); err != nil {
+	if err := assertFile(filepath.Join(string(sealed)), ssizeRaw, ssizeRaw); err != nil {
 		return err
 	}
 

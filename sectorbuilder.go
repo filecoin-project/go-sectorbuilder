@@ -9,6 +9,7 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 	"golang.org/x/xerrors"
@@ -19,7 +20,7 @@ import (
 const PoStReservedWorkers = 1
 const PoRepProofPartitions = 10
 
-var lastSectorIdKey = datastore.NewKey("/last")
+var lastSectorNumKey = datastore.NewKey("/last")
 
 var log = logging.Logger("sectorbuilder")
 
@@ -38,13 +39,13 @@ func (rspco *JsonRSPCO) rspco() RawSealPreCommitOutput {
 }
 
 type Config struct {
-	SectorSize uint64
+	SectorSize abi.SectorSize
 	Miner      address.Address
 
-	WorkerThreads  uint8
-	FallbackLastID uint64
-	NoCommit       bool
-	NoPreCommit    bool
+	WorkerThreads   uint8
+	FallbackLastNum abi.SectorNumber
+	NoCommit        bool
+	NoPreCommit     bool
 
 	Paths []fs.PathConfig
 	_     struct{} // guard against nameless init
@@ -55,17 +56,17 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 		return nil, xerrors.Errorf("minimum worker threads is %d, specified %d", PoStReservedWorkers, cfg.WorkerThreads)
 	}
 
-	var lastUsedID uint64
-	b, err := ds.Get(lastSectorIdKey)
+	var lastUsedNum abi.SectorNumber
+	b, err := ds.Get(lastSectorNumKey)
 	switch err {
 	case nil:
 		i, err := strconv.ParseInt(string(b), 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		lastUsedID = uint64(i)
+		lastUsedNum = abi.SectorNumber(i)
 	case datastore.ErrNotFound:
-		lastUsedID = cfg.FallbackLastID
+		lastUsedNum = cfg.FallbackLastNum
 	default:
 		return nil, err
 	}
@@ -81,8 +82,8 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	sb := &SectorBuilder{
 		ds: ds,
 
-		ssize:  cfg.SectorSize,
-		lastID: lastUsedID,
+		ssize:   cfg.SectorSize,
+		lastNum: lastUsedNum,
 
 		filesystem: fs.OpenFs(cfg.Paths),
 
@@ -191,18 +192,18 @@ func addressToProverID(a address.Address) [32]byte {
 	return proverId
 }
 
-func (sb *SectorBuilder) AcquireSectorId() (uint64, error) {
-	sb.idLk.Lock()
-	defer sb.idLk.Unlock()
+func (sb *SectorBuilder) AcquireSectorNumber() (abi.SectorNumber, error) {
+	sb.numLk.Lock()
+	defer sb.numLk.Unlock()
 
-	sb.lastID++
-	id := sb.lastID
+	sb.lastNum++
+	num := sb.lastNum
 
-	err := sb.ds.Put(lastSectorIdKey, []byte(fmt.Sprint(id)))
+	err := sb.ds.Put(lastSectorNumKey, []byte(fmt.Sprint(num)))
 	if err != nil {
 		return 0, err
 	}
-	return id, nil
+	return num, nil
 }
 
 func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (RawSealPreCommitOutput, error) {
@@ -234,30 +235,30 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err er
 	}
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faults []uint64) (SortedPrivateSectorInfo, error) {
-	fmap := map[uint64]struct{}{}
+func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faults []abi.SectorNumber) (SortedPrivateSectorInfo, error) {
+	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
 	}
 
 	var out []ffi.PrivateSectorInfo
 	for _, s := range sectorInfo.Values() {
-		if _, faulty := fmap[s.SectorID]; faulty {
+		if _, faulty := fmap[s.SectorNum]; faulty {
 			continue
 		}
 
-		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorID) // TODO: LOCK!
+		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNum) // TODO: LOCK!
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorID, err)
+			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
 		}
 
-		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorID)
+		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNum)
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorID, err)
+			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
-			SectorID:         s.SectorID,
+			SectorNum:        s.SectorNum,
 			CommR:            s.CommR,
 			CacheDirPath:     string(cachePath),
 			SealedSectorPath: string(sealedPath),
@@ -274,18 +275,18 @@ func fallbackPostChallengeCount(sectors uint64, faults uint64) uint64 {
 	return challengeCount
 }
 
-func (sb *SectorBuilder) FinalizeSector(ctx context.Context, id uint64) error {
-	sealed, err := sb.filesystem.FindSector(fs.DataSealed, sb.Miner, id)
+func (sb *SectorBuilder) FinalizeSector(ctx context.Context, num abi.SectorNumber) error {
+	sealed, err := sb.filesystem.FindSector(fs.DataSealed, sb.Miner, num)
 	if err != nil {
 		return xerrors.Errorf("getting sealed sector: %w", err)
 	}
-	cache, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, id)
+	cache, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, num)
 	if err != nil {
 		return xerrors.Errorf("getting sector cache: %w", err)
 	}
 
 	// todo: flag to just remove
-	staged, err := sb.filesystem.FindSector(fs.DataStaging, sb.Miner, id)
+	staged, err := sb.filesystem.FindSector(fs.DataStaging, sb.Miner, num)
 	if err != nil {
 		return xerrors.Errorf("getting staged sector: %w", err)
 	}
@@ -338,8 +339,8 @@ func (sb *SectorBuilder) FinalizeSector(ctx context.Context, id uint64) error {
 	return nil
 }
 
-func (sb *SectorBuilder) DropStaged(ctx context.Context, id uint64) error {
-	sp, err := sb.SectorPath(fs.DataStaging, id)
+func (sb *SectorBuilder) DropStaged(ctx context.Context, num abi.SectorNumber) error {
+	sp, err := sb.SectorPath(fs.DataStaging, num)
 	if err != nil {
 		return xerrors.Errorf("finding staged sector: %w", err)
 	}
@@ -357,7 +358,7 @@ func (sb *SectorBuilder) ImportFrom(osb *SectorBuilder, symlink bool) error {
 		return xerrors.Errorf("migrating sector data: %w", err)
 	}
 
-	val, err := osb.ds.Get(lastSectorIdKey)
+	val, err := osb.ds.Get(lastSectorNumKey)
 	if err != nil {
 		if err == datastore.ErrNotFound {
 			log.Warnf("CAUTION: last sector ID not found in previous datastore")
@@ -366,21 +367,21 @@ func (sb *SectorBuilder) ImportFrom(osb *SectorBuilder, symlink bool) error {
 		return err
 	}
 
-	if err := sb.ds.Put(lastSectorIdKey, val); err != nil {
+	if err := sb.ds.Put(lastSectorNumKey, val); err != nil {
 		return err
 	}
 
-	sb.lastID = osb.lastID
+	sb.lastNum = osb.lastNum
 
 	return nil
 }
 
-func (sb *SectorBuilder) SetLastSectorID(id uint64) error {
-	if err := sb.ds.Put(lastSectorIdKey, []byte(fmt.Sprint(id))); err != nil {
+func (sb *SectorBuilder) SetLastSectorNum(num abi.SectorNumber) error {
+	if err := sb.ds.Put(lastSectorNumKey, []byte(fmt.Sprint(num))); err != nil {
 		return err
 	}
 
-	sb.lastID = id
+	sb.lastNum = num
 	return nil
 }
 

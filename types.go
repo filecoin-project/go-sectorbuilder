@@ -5,6 +5,7 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
@@ -16,10 +17,6 @@ type SortedPrivateSectorInfo = ffi.SortedPrivateSectorInfo
 type SealTicket = ffi.SealTicket
 
 type SealSeed = ffi.SealSeed
-
-type SealPreCommitOutput = ffi.SealPreCommitOutput
-
-type SealCommitOutput = ffi.SealCommitOutput
 
 type PublicPieceInfo = ffi.PublicPieceInfo
 
@@ -37,11 +34,11 @@ type WorkerCfg struct {
 }
 
 type SectorBuilder struct {
-	ds   datastore.Batching
-	idLk sync.Mutex
+	ds    datastore.Batching
+	numLk sync.Mutex
 
-	ssize  uint64
-	lastID uint64
+	ssize   abi.SectorSize
+	lastNum abi.SectorNumber
 
 	Miner address.Address
 
@@ -65,7 +62,7 @@ type SectorBuilder struct {
 	commitWait    int32
 	unsealWait    int32
 
-	fsLk       sync.Mutex //nolint: struckcheck
+	fsLk       sync.Mutex //nolint: structcheck, unused
 	filesystem *fs.FS
 
 	stopping chan struct{}

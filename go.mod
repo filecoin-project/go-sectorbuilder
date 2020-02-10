@@ -6,19 +6,16 @@ require (
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20191219131535-bb699517a590
 	github.com/filecoin-project/go-address v0.0.0-20200107215422-da8eea2842b5
+	github.com/filecoin-project/go-padreader v0.0.0-20200210211231-548257017ca6 // indirect
 	github.com/filecoin-project/go-paramfetch v0.0.0-20200102181131-b20d579f2878
-	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/filecoin-project/specs-actors v0.0.0-20200210130641-2d1fbd8672cf
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
-	github.com/ipfs/go-cid v0.0.4 // indirect
 	github.com/ipfs/go-datastore v0.1.1
 	github.com/ipfs/go-ipld-format v0.0.2 // indirect
 	github.com/ipfs/go-log v1.0.0
 	github.com/ipfs/go-log/v2 v2.0.2
-	github.com/jbenet/goprocess v0.1.3 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.9 // indirect
-	github.com/minio/sha256-simd v0.1.1 // indirect
-	github.com/mr-tron/base58 v1.1.3 // indirect
 	github.com/otiai10/copy v1.0.2
 	github.com/polydawn/refmt v0.0.0-20190809202753-05966cbd336a // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect

@@ -9,29 +9,30 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
-func (sb *SectorBuilder) SectorName(sectorID uint64) string {
-	return fs.SectorName(sb.Miner, sectorID)
+func (sb *SectorBuilder) SectorName(sectorNum abi.SectorNumber) string {
+	return fs.SectorName(sb.Miner, sectorNum)
 }
 
-func (sb *SectorBuilder) SectorPath(typ fs.DataType, sectorID uint64) (fs.SectorPath, error) {
-	return sb.filesystem.FindSector(typ, sb.Miner, sectorID)
+func (sb *SectorBuilder) SectorPath(typ fs.DataType, sectorNum abi.SectorNumber) (fs.SectorPath, error) {
+	return sb.filesystem.FindSector(typ, sb.Miner, sectorNum)
 }
 
-func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorID uint64, cache bool) (fs.SectorPath, error) {
-	return sb.filesystem.AllocSector(typ, sb.Miner, sb.ssize, cache, sectorID)
+func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorNum abi.SectorNumber, cache bool) (fs.SectorPath, error) {
+	return sb.filesystem.AllocSector(typ, sb.Miner, sb.ssize, cache, sectorNum)
 }
 
 func (sb *SectorBuilder) ReleaseSector(typ fs.DataType, path fs.SectorPath) {
 	sb.filesystem.Release(path, sb.ssize)
 }
 
-func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID uint64) error {
-	dir, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, sectorID)
+func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorNum abi.SectorNumber) error {
+	dir, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, sectorNum)
 	if err != nil {
 		return xerrors.Errorf("getting cache dir: %w", err)
 	}
@@ -61,8 +62,8 @@ func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorID uint64) error {
 	return nil
 }
 
-func (sb *SectorBuilder) CanCommit(sectorID uint64) (bool, error) {
-	dir, err := sb.SectorPath(fs.DataCache, sectorID)
+func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
+	dir, err := sb.SectorPath(fs.DataCache, sectorNum)
 	if err != nil {
 		return false, xerrors.Errorf("getting cache dir: %w", err)
 	}

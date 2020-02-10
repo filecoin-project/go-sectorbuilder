@@ -3,7 +3,6 @@ package sectorbuilder_test
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -17,6 +16,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-sectorbuilder/fs"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 

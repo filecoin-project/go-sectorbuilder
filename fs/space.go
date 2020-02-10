@@ -1,11 +1,12 @@
 package fs
 
 import (
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	"path/filepath"
 	"syscall"
+
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	"golang.org/x/xerrors"
 )
 
 // reserve reserves storage for the sector. `path` is the path of the directory containing sectors

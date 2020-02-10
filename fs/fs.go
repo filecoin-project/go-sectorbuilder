@@ -3,7 +3,6 @@ package fs
 import (
 	"errors"
 	"fmt"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 )

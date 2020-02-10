@@ -1,11 +1,11 @@
 package fs
 
 import (
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	dcopy "github.com/otiai10/copy"
 	"golang.org/x/xerrors"
 )

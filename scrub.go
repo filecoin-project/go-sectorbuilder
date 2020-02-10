@@ -1,12 +1,12 @@
 package sectorbuilder
 
 import (
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	sectorbuilder "github.com/filecoin-project/filecoin-ffi"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"

@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-sectorbuilder/fs"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 
@@ -32,7 +33,7 @@ func init() {
 const sectorSize = 1024
 
 type seal struct {
-	sid uint64
+	num abi.SectorNumber
 
 	pco sectorbuilder.RawSealPreCommitOutput
 	ppi sectorbuilder.PublicPieceInfo
@@ -40,12 +41,12 @@ type seal struct {
 	ticket sectorbuilder.SealTicket
 }
 
-func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, sid uint64, done func()) {
+func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, num abi.SectorNumber, done func()) {
 	dlen := sectorbuilder.UserBytesForSectorSize(sectorSize)
 
 	var err error
-	r := io.LimitReader(rand.New(rand.NewSource(42+int64(sid))), int64(dlen))
-	s.ppi, err = sb.AddPiece(context.TODO(), dlen, sid, r, []uint64{})
+	r := io.LimitReader(rand.New(rand.NewSource(42+int64(num))), int64(dlen))
+	s.ppi, err = sb.AddPiece(context.TODO(), dlen, num, r, []abi.UnpaddedPieceSize{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -55,7 +56,7 @@ func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, sid uint
 		TicketBytes: [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2},
 	}
 
-	s.pco, err = sb.SealPreCommit(context.TODO(), sid, s.ticket, []sectorbuilder.PublicPieceInfo{s.ppi})
+	s.pco, err = sb.SealPreCommit(context.TODO(), num, s.ticket, []sectorbuilder.PublicPieceInfo{s.ppi})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -69,12 +70,12 @@ func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()
 		TicketBytes: [32]byte{0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9},
 	}
 
-	proof, err := sb.SealCommit(context.TODO(), s.sid, s.ticket, seed, []sectorbuilder.PublicPieceInfo{s.ppi}, s.pco)
+	proof, err := sb.SealCommit(context.TODO(), s.num, s.ticket, seed, []sectorbuilder.PublicPieceInfo{s.ppi}, s.pco)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := sectorbuilder.ProofVerifier.VerifySeal(sectorSize, s.pco.CommR[:], s.pco.CommD[:], sb.Miner, s.ticket.TicketBytes[:], seed.TicketBytes[:], s.sid, proof)
+	ok, err := sectorbuilder.ProofVerifier.VerifySeal(sectorSize, s.pco.CommR[:], s.pco.CommD[:], sb.Miner, s.ticket.TicketBytes[:], seed.TicketBytes[:], s.num, proof)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -92,14 +93,14 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	ppi := make([]ffi.PublicSectorInfo, len(seals))
 	for i, s := range seals {
 		ppi[i] = ffi.PublicSectorInfo{
-			SectorID: s.sid,
-			CommR:    s.pco.CommR,
+			SectorNum: s.num,
+			CommR:     s.pco.CommR,
 		}
 	}
 
 	ssi := sectorbuilder.NewSortedPublicSectorInfo(ppi)
 
-	candndates, err := sb.GenerateEPostCandidates(ssi, cSeed, []uint64{})
+	candndates, err := sb.GenerateEPostCandidates(ssi, cSeed, []abi.SectorNumber{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -190,12 +191,12 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	defer cleanup()
 
-	si, err := sb.AcquireSectorId()
+	si, err := sb.AcquireSectorNumber()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	s := seal{sid: si}
+	s := seal{num: si}
 
 	start := time.Now()
 
@@ -261,12 +262,12 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	defer cleanup()
 
-	si, err := sb.AcquireSectorId()
+	si, err := sb.AcquireSectorNumber()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	s := seal{sid: si}
+	s := seal{num: si}
 
 	start := time.Now()
 
@@ -324,17 +325,17 @@ func TestSealAndVerify2(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	si1, err := sb.AcquireSectorId()
+	si1, err := sb.AcquireSectorNumber()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	si2, err := sb.AcquireSectorId()
+	si2, err := sb.AcquireSectorNumber()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	s1 := seal{sid: si1}
-	s2 := seal{sid: si2}
+	s1 := seal{num: si1}
+	s2 := seal{num: si2}
 
 	wg.Add(2)
 	go s1.precommit(t, sb, 1, wg.Done) //nolint: staticcheck
@@ -363,10 +364,10 @@ func TestAcquireID(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	assertAcquire := func(expect uint64) {
-		id, err := sb.AcquireSectorId()
+	assertAcquire := func(expect abi.SectorNumber) {
+		num, err := sb.AcquireSectorNumber()
 		require.NoError(t, err)
-		assert.Equal(t, expect, id)
+		assert.Equal(t, expect, num)
 	}
 
 	assertAcquire(1)
@@ -401,8 +402,8 @@ func TestVerifyEmpty(t *testing.T) {
 		context.TODO(),
 		1024,
 		sectorbuilder.NewSortedPublicSectorInfo([]ffi.PublicSectorInfo{
-			{SectorID: sectorSize, CommR: sr},
-			{SectorID: sectorSize, CommR: sr},
+			{SectorNum: 1, CommR: sr},
+			{SectorNum: 2, CommR: sr},
 		}),
 		cSeed[:],
 		nil, // 0s

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 )
@@ -53,18 +54,18 @@ func (p SectorPath) typ() DataType {
 	return DataType(filepath.Base(filepath.Dir(string(p))))
 }
 
-func (p SectorPath) id() (uint64, error) {
+func (p SectorPath) num() (abi.SectorNumber, error) {
 	b := filepath.Base(string(p))
 	i := strings.LastIndexByte(b, '-')
 	if i < 0 {
-		return 0, xerrors.Errorf("malformed sector file name: '%s', expected to be in form 's-[miner]-[id]'", b)
+		return 0, xerrors.Errorf("malformed sector file name: '%s', expected to be in form 's-[miner]-[num]'", b)
 	}
-	id, err := strconv.ParseUint(b[i+1:], 10, 64)
+	num, err := strconv.ParseUint(b[i+1:], 10, 64)
 	if err != nil {
-		return 0, xerrors.Errorf("parsing sector id (name: '%s'): %w", b, err)
+		return 0, xerrors.Errorf("parsing sector num (name: '%s'): %w", b, err)
 	}
 
-	return id, nil
+	return abi.SectorNumber(num), nil
 }
 
 func (p SectorPath) miner() (address.Address, error) {
@@ -72,18 +73,18 @@ func (p SectorPath) miner() (address.Address, error) {
 	fi := strings.IndexByte(b, '-')
 	li := strings.LastIndexByte(b, '-')
 	if li < 0 || fi < 0 {
-		return address.Undef, xerrors.Errorf("malformed sector file name: '%s', expected to be in form 's-[miner]-[id]'", b)
+		return address.Undef, xerrors.Errorf("malformed sector file name: '%s', expected to be in form 's-[miner]-[num]'", b)
 	}
 
 	return address.NewFromString(b[fi+1 : li])
 }
 
-func SectorName(miner address.Address, sectorID uint64) string {
-	return fmt.Sprintf("s-%s-%d", miner, sectorID)
+func SectorName(miner address.Address, sectorNum abi.SectorNumber) string {
+	return fmt.Sprintf("s-%s-%d", miner, uint64(sectorNum))
 }
 
-func (p StoragePath) Sector(typ DataType, miner address.Address, id uint64) SectorPath {
-	return SectorPath(filepath.Join(string(p), string(typ), SectorName(miner, id)))
+func (p StoragePath) Sector(typ DataType, miner address.Address, num abi.SectorNumber) SectorPath {
+	return SectorPath(filepath.Join(string(p), string(typ), SectorName(miner, num)))
 }
 
 type pathInfo struct {
@@ -145,18 +146,18 @@ func (f *FS) Init() error {
 	return nil
 }
 
-func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out SectorPath, err error) {
+func (f *FS) FindSector(typ DataType, miner address.Address, num abi.SectorNumber) (out SectorPath, err error) {
 	// TODO: consider keeping some sort of index at some point
 
 	for path := range f.paths {
-		p := path.Sector(typ, miner, id)
+		p := path.Sector(typ, miner, num)
 
 		_, err := os.Stat(string(p))
 		if os.IsNotExist(err) {
 			continue
 		}
 		if err != nil {
-			log.Errorf("error scanning path %s for sector %s (%s): %+v", p, SectorName(miner, id), string(typ))
+			log.Errorf("error scanning path %s for sector %s (%s): %+v", p, SectorName(miner, num), string(typ))
 			continue
 		}
 		if out != "" {
@@ -175,7 +176,7 @@ func (f *FS) FindSector(typ DataType, miner address.Address, id uint64) (out Sec
 	return out, nil
 }
 
-func (f *FS) findBestPath(size uint64, cache bool, strict bool) (StoragePath, error) {
+func (f *FS) findBestPath(qtyBytesNeeded uint64, cache bool, strict bool) (StoragePath, error) {
 	var best StoragePath
 	bestw := big.NewInt(0)
 
@@ -193,7 +194,7 @@ func (f *FS) findBestPath(size uint64, cache bool, strict bool) (StoragePath, er
 			continue
 		}
 
-		if uint64(avail) < size {
+		if uint64(avail) < qtyBytesNeeded {
 			continue
 		}
 
@@ -220,9 +221,9 @@ func (f *FS) findBestPath(size uint64, cache bool, strict bool) (StoragePath, er
 	return best, nil
 }
 
-func (f *FS) ForceAllocSector(typ DataType, miner address.Address, ssize uint64, cache bool, id uint64) (SectorPath, error) {
+func (f *FS) ForceAllocSector(typ DataType, miner address.Address, ssize abi.SectorSize, cache bool, num abi.SectorNumber) (SectorPath, error) {
 	for {
-		spath, err := f.FindSector(typ, miner, id)
+		spath, err := f.FindSector(typ, miner, num)
 		if err == ErrNotFound {
 			break
 		}
@@ -236,13 +237,13 @@ func (f *FS) ForceAllocSector(typ DataType, miner address.Address, ssize uint64,
 		}
 	}
 
-	return f.AllocSector(typ, miner, ssize, cache, id)
+	return f.AllocSector(typ, miner, ssize, cache, num)
 }
 
 // AllocSector finds the best path for this sector to use
-func (f *FS) AllocSector(typ DataType, miner address.Address, ssize uint64, cache bool, id uint64) (SectorPath, error) {
+func (f *FS) AllocSector(typ DataType, miner address.Address, ssize abi.SectorSize, cache bool, num abi.SectorNumber) (SectorPath, error) {
 	{
-		spath, err := f.FindSector(typ, miner, id)
+		spath, err := f.FindSector(typ, miner, num)
 		if err == nil {
 			return spath, xerrors.Errorf("allocating sector %s: %m", spath, ErrExists)
 		}
@@ -251,20 +252,22 @@ func (f *FS) AllocSector(typ DataType, miner address.Address, ssize uint64, cach
 		}
 	}
 
-	need := overheadMul[typ] * ssize
+	need := overheadMul[typ] * uint64(ssize)
 
 	p, err := f.findBestPath(need, cache, false)
 	if err != nil {
 		return "", err
 	}
 
-	sp := p.Sector(typ, miner, id)
+	sp := p.Sector(typ, miner, num)
 
 	return sp, f.reserve(typ, sp.storage(), need)
 }
 
-func (f *FS) PrepareCacheMove(sector SectorPath, ssize uint64, tocache bool) (SectorPath, error) {
-	p, err := f.findBestPath(ssize, tocache, true)
+func (f *FS) PrepareCacheMove(sector SectorPath, ssize abi.SectorSize, tocache bool) (SectorPath, error) {
+	need := uint64(ssize)
+
+	p, err := f.findBestPath(need, tocache, true)
 	if err != nil {
 		return "", err
 	}
@@ -273,12 +276,12 @@ func (f *FS) PrepareCacheMove(sector SectorPath, ssize uint64, tocache bool) (Se
 	if err != nil {
 		return "", err
 	}
-	id, err := sector.id()
+	id, err := sector.num()
 	if err != nil {
 		return "", err
 	}
 
-	return p.Sector(sector.typ(), m, id), f.reserve(sector.typ(), p, ssize)
+	return p.Sector(sector.typ(), m, id), f.reserve(sector.typ(), p, need)
 }
 
 func (f *FS) MoveSector(from, to SectorPath) error {

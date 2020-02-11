@@ -1,14 +1,16 @@
 package fs
 
 import (
-	"golang.org/x/xerrors"
 	"io/ioutil"
 	"path/filepath"
 	"syscall"
+
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	"golang.org/x/xerrors"
 )
 
 // reserve reserves storage for the sector. `path` is the path of the directory containing sectors
-func (f *FS) reserve(typ DataType, path StoragePath, size uint64) error {
+func (f *FS) reserve(typ DataType, path StoragePath, qtyBytesNeeded uint64) error {
 	f.lk.Lock()
 	defer f.lk.Unlock()
 
@@ -17,10 +19,10 @@ func (f *FS) reserve(typ DataType, path StoragePath, size uint64) error {
 		return err
 	}
 
-	if int64(size) > avail {
+	if int64(qtyBytesNeeded) > avail {
 		return xerrors.Errorf("not enough space in '%s', need %dB, available %dB (fs: %dB, reserved: %dB)",
 			f.paths,
-			size,
+			qtyBytesNeeded,
 			avail,
 			fsavail,
 			f.reservedBytes(path))
@@ -29,16 +31,16 @@ func (f *FS) reserve(typ DataType, path StoragePath, size uint64) error {
 	if _, ok := f.reserved[path]; !ok {
 		f.reserved[path] = map[DataType]uint64{}
 	}
-	f.reserved[path][typ] += size
+	f.reserved[path][typ] += qtyBytesNeeded
 
 	return nil
 }
 
-func (f *FS) Release(path SectorPath, sectorSize uint64) {
+func (f *FS) Release(path SectorPath, sectorSize abi.SectorSize) {
 	f.lk.Lock()
 	defer f.lk.Unlock()
 
-	f.reserved[path.storage()][path.typ()] -= overheadMul[path.typ()] * sectorSize
+	f.reserved[path.storage()][path.typ()] -= overheadMul[path.typ()] * uint64(sectorSize)
 }
 
 func (f *FS) List(path StoragePath, typ DataType) ([]SectorPath, error) {

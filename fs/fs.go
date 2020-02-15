@@ -183,6 +183,7 @@ func (f *FS) findBestPath(size uint64, cache bool, strict bool) (StoragePath, er
 	bestc := true
 
 	for path, info := range f.paths {
+		log.Debugw("Checking storage path", "path", string(path), "cache", info.cache, "weight", info.weight)
 		if info.cache != cache && (bestc != info.cache || strict) {
 			continue
 		}
@@ -194,6 +195,7 @@ func (f *FS) findBestPath(size uint64, cache bool, strict bool) (StoragePath, er
 		}
 
 		if uint64(avail) < size {
+			log.Debugw("Not enough space available", "path", string(path), "available", avail, "required", size)
 			continue
 		}
 

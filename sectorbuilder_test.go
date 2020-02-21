@@ -13,8 +13,6 @@ import (
 	"time"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
-	"github.com/filecoin-project/go-address"
-	commcid "github.com/filecoin-project/go-fil-commcid"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
@@ -394,44 +392,5 @@ func TestAcquireID(t *testing.T) {
 
 	if err := os.RemoveAll(dir); err != nil {
 		t.Error(err)
-	}
-}
-
-// TestVerifyEmpty tests a certain assumption
-func TestVerifyEmpty(t *testing.T) {
-	cSeed := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
-	sr := [32]byte{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 43, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
-	sealedCID := commcid.ReplicaCommitmentV1ToCID(sr[:])
-	t0101, err := address.NewIDAddress(101)
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-
-	ok, err := sectorbuilder.ProofVerifier.VerifyFallbackPost(
-		context.TODO(),
-		ffi.NewSortedPublicSectorInfo([]ffi.PublicSectorInfo{
-			{
-				PoStProofType: postProofType,
-				SealedCID:     sealedCID,
-				SectorNum:     abi.SectorNumber(1),
-			},
-			{
-				PoStProofType: postProofType,
-				SealedCID:     sealedCID,
-				SectorNum:     abi.SectorNumber(2),
-			},
-		}...),
-		cSeed,
-		nil, // 0s
-		nil, // 0s
-		t0101,
-		2) //fault everything
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-	if !ok {
-		t.Error("proof not ok")
 	}
 }

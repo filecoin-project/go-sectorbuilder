@@ -184,7 +184,7 @@ func TestSealAndVerify(t *testing.T) {
 		},
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(paths, sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(paths, sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -224,7 +224,7 @@ func TestSealAndVerify(t *testing.T) {
 	epost := time.Now()
 
 	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(paths, sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(paths, sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -256,7 +256,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -285,7 +285,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	precommit := time.Now()
 
 	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -318,7 +318,7 @@ func TestSealAndVerify2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -366,7 +366,7 @@ func TestAcquireID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -381,7 +381,7 @@ func TestAcquireID(t *testing.T) {
 	assertAcquire(2)
 	assertAcquire(3)
 
-	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

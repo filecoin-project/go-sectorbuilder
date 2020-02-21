@@ -300,10 +300,11 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo ffi.SortedPublicSectorInfo, 
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
-			SectorNum:        s.SectorNum,
-			SealedCID:        s.SealedCID,
 			CacheDirPath:     string(cachePath),
+			PoStProofType:    s.PoStProofType,
+			SealedCID:        s.SealedCID,
 			SealedSectorPath: string(sealedPath),
+			SectorNum:        s.SectorNum,
 		})
 	}
 

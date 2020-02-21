@@ -91,8 +91,9 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	psis := make([]ffi.PublicSectorInfo, len(seals))
 	for i, s := range seals {
 		psis[i] = ffi.PublicSectorInfo{
-			SectorNum: s.num,
-			SealedCID: s.sealedCID,
+			PoStProofType: postProofType,
+			SealedCID:     s.sealedCID,
+			SectorNum:     s.num,
 		}
 	}
 

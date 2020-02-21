@@ -7,14 +7,14 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	commcid "github.com/filecoin-project/go-fil-commcid"
-
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
+	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
+	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
@@ -48,8 +48,9 @@ func (r *JsonRSPCO) ToTuple() (sealedCID cid.Cid, unsealedCID cid.Cid) {
 }
 
 type Config struct {
-	SectorSize abi.SectorSize
-	Miner      address.Address
+	SealProofType abi.RegisteredProof
+	PoStProofType abi.RegisteredProof
+	Miner         address.Address
 
 	WorkerThreads   uint8
 	FallbackLastNum abi.SectorNumber
@@ -63,6 +64,19 @@ type Config struct {
 func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	if cfg.WorkerThreads < PoStReservedWorkers {
 		return nil, xerrors.Errorf("minimum worker threads is %d, specified %d", PoStReservedWorkers, cfg.WorkerThreads)
+	}
+
+	if cfg.SealProofType == abi.RegisteredProof(0) {
+		return nil, xerrors.New("must specify a seal proof type from abi.RegisteredProof")
+	}
+
+	if cfg.PoStProofType == abi.RegisteredProof(0) {
+		return nil, xerrors.New("must specify a PoSt proof type from abi.RegisteredProof")
+	}
+
+	sectorSize, err := sizeFromConfig(*cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	var lastUsedNum abi.SectorNumber
@@ -91,8 +105,11 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	sb := &SectorBuilder{
 		ds: ds,
 
-		ssize:   cfg.SectorSize,
 		lastNum: lastUsedNum,
+
+		sealProofType: cfg.SealProofType,
+		postProofType: cfg.PoStProofType,
+		ssize:         sectorSize,
 
 		filesystem: fs.OpenFs(cfg.Paths),
 
@@ -119,10 +136,25 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 }
 
 func NewStandalone(cfg *Config) (*SectorBuilder, error) {
+	if cfg.SealProofType == abi.RegisteredProof(0) {
+		return nil, xerrors.New("must specify a seal proof type from abi.RegisteredProof")
+	}
+
+	if cfg.PoStProofType == abi.RegisteredProof(0) {
+		return nil, xerrors.New("must specify a PoSt proof type from abi.RegisteredProof")
+	}
+
+	sectorSize, err := sizeFromConfig(*cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	sb := &SectorBuilder{
 		ds: nil,
 
-		ssize: cfg.SectorSize,
+		sealProofType: cfg.SealProofType,
+		postProofType: cfg.PoStProofType,
+		ssize:         sectorSize,
 
 		Miner:      cfg.Miner,
 		filesystem: fs.OpenFs(cfg.Paths),
@@ -398,4 +430,53 @@ func (sb *SectorBuilder) SetLastSectorNum(num abi.SectorNumber) error {
 
 func (sb *SectorBuilder) Stop() {
 	close(sb.stopping)
+}
+
+func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
+	s1, err := sizeFromProofType(cfg.SealProofType)
+	if err != nil {
+		return abi.SectorSize(0), err
+	}
+
+	s2, err := sizeFromProofType(cfg.PoStProofType)
+	if err != nil {
+		return abi.SectorSize(0), err
+	}
+
+	if s1 != s2 {
+		return abi.SectorSize(0), xerrors.Errorf("seal sector size %d does not equal PoSt sector size %d", s1, s2)
+	}
+
+	return s1, nil
+}
+
+func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
+	switch p {
+	case abi.RegisteredProof_WinStackedDRG32GiBSeal:
+		return 1 << 35, nil
+	case abi.RegisteredProof_WinStackedDRG32GiBPoSt:
+		return 1 << 35, nil
+	case abi.RegisteredProof_StackedDRG32GiBSeal:
+		return 1 << 35, nil
+	case abi.RegisteredProof_StackedDRG32GiBPoSt:
+		return 1 << 35, nil
+	case abi.RegisteredProof_StackedDRG1KiBSeal:
+		return 1024, nil
+	case abi.RegisteredProof_StackedDRG1KiBPoSt:
+		return 1024, nil
+	case abi.RegisteredProof_StackedDRG16MiBSeal:
+		return 1 << 24, nil
+	case abi.RegisteredProof_StackedDRG16MiBPoSt:
+		return 1 << 24, nil
+	case abi.RegisteredProof_StackedDRG256MiBSeal:
+		return 1 << 28, nil
+	case abi.RegisteredProof_StackedDRG256MiBPoSt:
+		return 1 << 28, nil
+	case abi.RegisteredProof_StackedDRG1GiBSeal:
+		return 1 << 30, nil
+	case abi.RegisteredProof_StackedDRG1GiBPoSt:
+		return 1 << 30, nil
+	default:
+		return abi.SectorSize(0), errors.Errorf("unsupported proof type: %+v", p)
+	}
 }

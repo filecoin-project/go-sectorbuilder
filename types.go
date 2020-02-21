@@ -21,10 +21,11 @@ type SectorBuilder struct {
 	ds    datastore.Batching
 	numLk sync.Mutex
 
-	ssize         abi.SectorSize
-	lastNum       abi.SectorNumber
+	lastNum abi.SectorNumber
+
 	sealProofType abi.RegisteredProof
 	postProofType abi.RegisteredProof
+	ssize         abi.SectorSize // a function of sealProofType and postProofType
 
 	Miner address.Address
 

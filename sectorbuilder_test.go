@@ -12,19 +12,18 @@ import (
 	"testing"
 	"time"
 
-	commcid "github.com/filecoin-project/go-fil-commcid"
-
-	"github.com/ipfs/go-cid"
-
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
+	commcid "github.com/filecoin-project/go-fil-commcid"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
-	"github.com/filecoin-project/go-sectorbuilder/fs"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
+	"github.com/pkg/errors"
 
-	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -133,6 +132,18 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	return genCandidates
 }
 
+func getGrothParamFileAndVerifyingKeys(s abi.SectorSize) {
+	dat, err := ioutil.ReadFile("./parameters.json")
+	if err != nil {
+		panic(errors.Wrap(err, "failed to read contents of ./parameters.json"))
+	}
+
+	err = paramfetch.GetParams(dat, uint64(s))
+	if err != nil {
+		panic(errors.Wrap(err, "failed to acquire Groth parameters for 1KiB sectors"))
+	}
+}
+
 // TestDownloadParams exists only so that developers and CI can pre-download
 // Groth parameters and verifying keys before running the tests which rely on
 // those parameters and keys. To do this, run the following command:
@@ -140,9 +151,7 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 // go test -run=^TestDownloadParams
 //
 func TestDownloadParams(t *testing.T) {
-	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 }
 
 func TestSealAndVerify(t *testing.T) {
@@ -151,9 +160,7 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 
 	ds := datastore.NewMapDatastore()
 
@@ -242,9 +249,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 
 	ds := datastore.NewMapDatastore()
 
@@ -306,9 +311,7 @@ func TestSealAndVerify2(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(uint64(sectorSize)); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 
 	ds := datastore.NewMapDatastore()
 
@@ -409,12 +412,12 @@ func TestVerifyEmpty(t *testing.T) {
 		context.TODO(),
 		ffi.NewSortedPublicSectorInfo([]ffi.PublicSectorInfo{
 			{
-				PoStProofType: abi.RegisteredProof_StackedDRG1KiBPoSt,
+				PoStProofType: postProofType,
 				SealedCID:     sealedCID,
 				SectorNum:     abi.SectorNumber(1),
 			},
 			{
-				PoStProofType: abi.RegisteredProof_StackedDRG1KiBPoSt,
+				PoStProofType: postProofType,
 				SealedCID:     sealedCID,
 				SectorNum:     abi.SectorNumber(2),
 			},

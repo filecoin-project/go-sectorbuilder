@@ -16,6 +16,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.0.2
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/otiai10/copy v1.0.2
+	github.com/pkg/errors v0.9.1
 	github.com/polydawn/refmt v0.0.0-20190809202753-05966cbd336a // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect

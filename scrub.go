@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	sectorbuilder "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 
@@ -18,13 +17,13 @@ type Fault struct {
 	Err error
 }
 
-func (sb *SectorBuilder) Scrub(sectorSet sectorbuilder.SortedPublicSectorInfo) []*Fault {
+func (sb *SectorBuilder) Scrub(sectorSet []abi.SectorNumber) []*Fault {
 	var faults []*Fault
 
-	for _, sector := range sectorSet.Values() {
-		err := sb.checkSector(sector.SectorNum)
+	for _, sectorNum := range sectorSet {
+		err := sb.checkSector(sectorNum)
 		if err != nil {
-			faults = append(faults, &Fault{SectorNum: sector.SectorNum, Err: err})
+			faults = append(faults, &Fault{SectorNum: sectorNum, Err: err})
 		}
 	}
 

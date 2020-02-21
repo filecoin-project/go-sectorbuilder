@@ -3,28 +3,12 @@ package sectorbuilder
 import (
 	"sync"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
-
-type SortedPublicSectorInfo = ffi.SortedPublicSectorInfo
-type SortedPrivateSectorInfo = ffi.SortedPrivateSectorInfo
-
-type SealTicket = ffi.SealTicket
-
-type SealSeed = ffi.SealSeed
-
-type PublicPieceInfo = ffi.PublicPieceInfo
-
-type RawSealPreCommitOutput ffi.RawSealPreCommitOutput
-
-type EPostCandidate = ffi.Candidate
-
-const CommLen = ffi.CommitmentBytesLen
 
 type WorkerCfg struct {
 	NoPreCommit bool
@@ -37,8 +21,10 @@ type SectorBuilder struct {
 	ds    datastore.Batching
 	numLk sync.Mutex
 
-	ssize   abi.SectorSize
-	lastNum abi.SectorNumber
+	ssize         abi.SectorSize
+	lastNum       abi.SectorNumber
+	sealProofType abi.RegisteredProof
+	postProofType abi.RegisteredProof
 
 	Miner address.Address
 
@@ -84,6 +70,6 @@ type SealRes struct {
 	Err   string
 	GoErr error `json:"-"`
 
-	Proof []byte
+	Proof abi.SealProof
 	Rspco JsonRSPCO
 }

@@ -6,6 +6,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/ipfs/go-cid"
+
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -22,57 +24,41 @@ type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}
 
-var UserBytesForSectorSize = ffi.GetMaxUserBytesPerStagedSector
-
-func (proofVerifier) VerifySeal(sectorSize abi.SectorSize, commR, commD []byte, proverID address.Address, ticket []byte, seed []byte, sectorNum abi.SectorNumber, proof []byte) (bool, error) {
-	var commRa, commDa, ticketa, seeda [32]byte
-	copy(commRa[:], commR)
-	copy(commDa[:], commD)
-	copy(ticketa[:], ticket)
-	copy(seeda[:], seed)
-	proverIDa := addressToProverID(proverID)
-
-	return ffi.VerifySeal(sectorSize, commRa, commDa, proverIDa, ticketa, seeda, sectorNum, proof)
+func (proofVerifier) VerifySeal(proofType abi.RegisteredProof, sealedCID, unsealedCID cid.Cid, prover address.Address, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, sectorNum abi.SectorNumber, proof abi.SealProof) (bool, error) {
+	return ffi.VerifySeal(proofType, sealedCID, unsealedCID, addressToProverID(prover), ticket, seed, sectorNum, proof)
 }
 
-func (proofVerifier) VerifyElectionPost(ctx context.Context, sectorSize abi.SectorSize, sectorInfo SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address) (bool, error) {
+func (proofVerifier) VerifyElectionPost(ctx context.Context, sectorInfo ffi.SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []abi.PoStCandidate, prover address.Address) (bool, error) {
 	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), 0)
-	return verifyPost(ctx, sectorSize, sectorInfo, challengeCount, challengeSeed, proof, candidates, proverID)
+	return verifyPost(ctx, sectorInfo, challengeCount, challengeSeed, proof, candidates, prover)
 }
 
-func (proofVerifier) VerifyFallbackPost(ctx context.Context, sectorSize abi.SectorSize, sectorInfo SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address, faults uint64) (bool, error) {
+func (proofVerifier) VerifyFallbackPost(ctx context.Context, sectorInfo ffi.SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []abi.PoStCandidate, prover address.Address, faults uint64) (bool, error) {
 	challengeCount := fallbackPostChallengeCount(uint64(len(sectorInfo.Values())), faults)
-	return verifyPost(ctx, sectorSize, sectorInfo, challengeCount, challengeSeed, proof, candidates, proverID)
+	return verifyPost(ctx, sectorInfo, challengeCount, challengeSeed, proof, candidates, prover)
 }
 
-func verifyPost(ctx context.Context, sectorSize abi.SectorSize, sectorInfo SortedPublicSectorInfo, challengeCount uint64, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address) (bool, error) {
-	var challengeSeeda [CommLen]byte
-	copy(challengeSeeda[:], challengeSeed)
-
+func verifyPost(ctx context.Context, sectorInfo ffi.SortedPublicSectorInfo, challengeCount uint64, challengeSeed abi.PoStRandomness, proof []byte, candidates []abi.PoStCandidate, prover address.Address) (bool, error) {
 	_, span := trace.StartSpan(ctx, "VerifyPoSt")
 	defer span.End()
-	prover := addressToProverID(proverID)
-	return ffi.VerifyPoSt(sectorSize, sectorInfo, challengeSeeda, challengeCount, proof, candidates, prover)
+
+	return ffi.VerifyPoSt(sectorInfo, challengeSeed, challengeCount, proof, candidates, addressToProverID(prover))
 }
 
-func NewSortedPublicSectorInfo(sectors []ffi.PublicSectorInfo) SortedPublicSectorInfo {
-	return ffi.NewSortedPublicSectorInfo(sectors...)
-}
-
-func GeneratePieceCommitment(piece io.Reader, pieceSize abi.UnpaddedPieceSize) (commP [CommLen]byte, err error) {
+func GeneratePieceCIDFromFile(proofType abi.RegisteredProof, piece io.Reader, pieceSize abi.UnpaddedPieceSize) (cid.Cid, error) {
 	f, werr, err := toReadableFile(piece, int64(pieceSize))
 	if err != nil {
-		return [32]byte{}, err
+		return cid.Undef, err
 	}
 
-	commP, err = ffi.GeneratePieceCommitmentFromFile(f, pieceSize)
+	pieceCID, err := ffi.GeneratePieceCIDFromFile(proofType, f, pieceSize)
 	if err != nil {
-		return [32]byte{}, err
+		return cid.Undef, err
 	}
 
-	return commP, werr()
+	return pieceCID, werr()
 }
 
-func GenerateDataCommitment(ssize abi.SectorSize, pieces []ffi.PublicPieceInfo) ([CommLen]byte, error) {
-	return ffi.GenerateDataCommitment(ssize, pieces)
+func GenerateUnsealedCID(proofType abi.RegisteredProof, pieces []abi.PieceInfo) (cid.Cid, error) {
+	return ffi.GenerateUnsealedCID(proofType, pieces)
 }

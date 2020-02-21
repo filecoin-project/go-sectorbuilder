@@ -7,9 +7,12 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	commcid "github.com/filecoin-project/go-fil-commcid"
+
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 	"golang.org/x/xerrors"
@@ -18,24 +21,30 @@ import (
 )
 
 const PoStReservedWorkers = 1
-const PoRepProofPartitions = 10
 
 var lastSectorNumKey = datastore.NewKey("/last")
 
 var log = logging.Logger("sectorbuilder")
 
-func (rspco *RawSealPreCommitOutput) ToJson() JsonRSPCO {
-	return JsonRSPCO{
-		CommD: rspco.CommD[:],
-		CommR: rspco.CommR[:],
+func ToJSONStruct(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonRSPCO, error) {
+	commR, err := commcid.CIDToReplicaCommitmentV1(sealedCID)
+	if err != nil {
+		return JsonRSPCO{}, err
 	}
+
+	commD, err := commcid.CIDToDataCommitmentV1(unsealedCID)
+	if err != nil {
+		return JsonRSPCO{}, err
+	}
+
+	return JsonRSPCO{
+		CommD: commD,
+		CommR: commR,
+	}, nil
 }
 
-func (rspco *JsonRSPCO) rspco() RawSealPreCommitOutput {
-	var out RawSealPreCommitOutput
-	copy(out.CommD[:], rspco.CommD)
-	copy(out.CommR[:], rspco.CommR)
-	return out
+func (r *JsonRSPCO) ToTuple() (sealedCID cid.Cid, unsealedCID cid.Cid) {
+	return commcid.ReplicaCommitmentV1ToCID(r.CommR), commcid.DataCommitmentV1ToCID(r.CommD)
 }
 
 type Config struct {
@@ -206,7 +215,7 @@ func (sb *SectorBuilder) AcquireSectorNumber() (abi.SectorNumber, error) {
 	return num, nil
 }
 
-func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (RawSealPreCommitOutput, error) {
+func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (sealedCID cid.Cid, unsealedCID cid.Cid, err error) {
 	atomic.AddInt32(&sb.preCommitWait, -1)
 
 	select {
@@ -215,13 +224,14 @@ func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (RawSealPreCommitO
 		if ret.Err != "" {
 			err = xerrors.New(ret.Err)
 		}
-		return ret.Rspco.rspco(), err
+
+		return commcid.ReplicaCommitmentV1ToCID(ret.Rspco.CommR), commcid.DataCommitmentV1ToCID(ret.Rspco.CommD), err
 	case <-sb.stopping:
-		return RawSealPreCommitOutput{}, xerrors.New("sectorbuilder stopped")
+		return cid.Undef, cid.Undef, xerrors.New("sectorbuilder stopped")
 	}
 }
 
-func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err error) {
+func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof, err error) {
 	atomic.AddInt32(&sb.commitWait, -1)
 
 	select {
@@ -231,11 +241,11 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err er
 		}
 		return ret.Proof, err
 	case <-sb.stopping:
-		return nil, xerrors.New("sectorbuilder stopped")
+		return abi.SealProof{}, xerrors.New("sectorbuilder stopped")
 	}
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faults []abi.SectorNumber) (SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(sectorInfo ffi.SortedPublicSectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
@@ -249,21 +259,22 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faul
 
 		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNum) // TODO: LOCK!
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
 		}
 
 		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNum)
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
 			SectorNum:        s.SectorNum,
-			CommR:            s.CommR,
+			SealedCID:        s.SealedCID,
 			CacheDirPath:     string(cachePath),
 			SealedSectorPath: string(sealedPath),
 		})
 	}
+
 	return ffi.NewSortedPrivateSectorInfo(out...), nil
 }
 

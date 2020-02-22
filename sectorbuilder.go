@@ -26,7 +26,7 @@ var lastSectorNumKey = datastore.NewKey("/last")
 
 var log = logging.Logger("sectorbuilder")
 
-func ToJSONStruct(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonRSPCO, error) {
+func NewJsonRSPCO(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonRSPCO, error) {
 	commR, err := commcid.CIDToReplicaCommitmentV1(sealedCID)
 	if err != nil {
 		return JsonRSPCO{}, err

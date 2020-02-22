@@ -63,8 +63,8 @@ type remote struct {
 }
 
 type JsonRSPCO struct {
-	CommD []byte
-	CommR []byte
+	CommD []byte // UnsealedCID
+	CommR []byte // SealedCID
 }
 
 type SealRes struct {

@@ -26,24 +26,24 @@ var lastSectorNumKey = datastore.NewKey("/last")
 
 var log = logging.Logger("sectorbuilder")
 
-func NewJsonRSPCO(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonRSPCO, error) {
+func NewJsonEncodablePreCommitOutput(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonEncodablePreCommitOutput, error) {
 	commR, err := commcid.CIDToReplicaCommitmentV1(sealedCID)
 	if err != nil {
-		return JsonRSPCO{}, err
+		return JsonEncodablePreCommitOutput{}, err
 	}
 
 	commD, err := commcid.CIDToDataCommitmentV1(unsealedCID)
 	if err != nil {
-		return JsonRSPCO{}, err
+		return JsonEncodablePreCommitOutput{}, err
 	}
 
-	return JsonRSPCO{
+	return JsonEncodablePreCommitOutput{
 		CommD: commD,
 		CommR: commR,
 	}, nil
 }
 
-func (r *JsonRSPCO) ToTuple() (sealedCID cid.Cid, unsealedCID cid.Cid) {
+func (r *JsonEncodablePreCommitOutput) ToTuple() (sealedCID cid.Cid, unsealedCID cid.Cid) {
 	return commcid.ReplicaCommitmentV1ToCID(r.CommR), commcid.DataCommitmentV1ToCID(r.CommD)
 }
 

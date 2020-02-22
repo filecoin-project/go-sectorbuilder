@@ -62,7 +62,7 @@ type remote struct {
 	busy      uint64 // only for metrics
 }
 
-type JsonRSPCO struct {
+type JsonEncodablePreCommitOutput struct {
 	CommD []byte // UnsealedCID
 	CommR []byte // SealedCID
 }
@@ -72,5 +72,5 @@ type SealRes struct {
 	GoErr error `json:"-"`
 
 	Proof abi.SealProof
-	Rspco JsonRSPCO
+	Rspco JsonEncodablePreCommitOutput
 }

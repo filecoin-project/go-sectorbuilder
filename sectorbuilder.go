@@ -66,14 +66,6 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 		return nil, xerrors.Errorf("minimum worker threads is %d, specified %d", PoStReservedWorkers, cfg.WorkerThreads)
 	}
 
-	if cfg.SealProofType == abi.RegisteredProof(0) {
-		return nil, xerrors.New("must specify a seal proof type from abi.RegisteredProof")
-	}
-
-	if cfg.PoStProofType == abi.RegisteredProof(0) {
-		return nil, xerrors.New("must specify a PoSt proof type from abi.RegisteredProof")
-	}
-
 	sectorSize, err := sizeFromConfig(*cfg)
 	if err != nil {
 		return nil, err
@@ -136,14 +128,6 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 }
 
 func NewStandalone(cfg *Config) (*SectorBuilder, error) {
-	if cfg.SealProofType == abi.RegisteredProof(0) {
-		return nil, xerrors.New("must specify a seal proof type from abi.RegisteredProof")
-	}
-
-	if cfg.PoStProofType == abi.RegisteredProof(0) {
-		return nil, xerrors.New("must specify a PoSt proof type from abi.RegisteredProof")
-	}
-
 	sectorSize, err := sizeFromConfig(*cfg)
 	if err != nil {
 		return nil, err
@@ -434,6 +418,14 @@ func (sb *SectorBuilder) Stop() {
 }
 
 func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
+	if cfg.SealProofType == abi.RegisteredProof(0) {
+		return abi.SectorSize(0), xerrors.New("must specify a seal proof type from abi.RegisteredProof")
+	}
+
+	if cfg.PoStProofType == abi.RegisteredProof(0) {
+		return abi.SectorSize(0), xerrors.New("must specify a PoSt proof type from abi.RegisteredProof")
+	}
+
 	s1, err := sizeFromProofType(cfg.SealProofType)
 	if err != nil {
 		return abi.SectorSize(0), err

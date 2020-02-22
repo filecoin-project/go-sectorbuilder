@@ -53,6 +53,9 @@ func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorNum abi.SectorNumb
 		if strings.HasSuffix(file.Name(), "-data-tree-r-last.dat") { // Want to keep
 			continue
 		}
+		if strings.HasSuffix(file.Name(), "-data-tree-d.dat") { // Want to keep
+			continue
+		}
 
 		if err := os.Remove(filepath.Join(string(dir), file.Name())); err != nil {
 			return xerrors.Errorf("rm %s: %w", file.Name(), err)

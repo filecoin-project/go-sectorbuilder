@@ -5,10 +5,9 @@ import (
 	"io"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
-	"github.com/ipfs/go-cid"
-
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )

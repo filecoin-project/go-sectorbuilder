@@ -3,9 +3,8 @@ package sectorbuilder
 import (
 	"context"
 
-	"github.com/ipfs/go-cid"
-
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 )
 

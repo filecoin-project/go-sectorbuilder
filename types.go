@@ -3,28 +3,12 @@ package sectorbuilder
 import (
 	"sync"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-datastore"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
-
-type SortedPublicSectorInfo = ffi.SortedPublicSectorInfo
-type SortedPrivateSectorInfo = ffi.SortedPrivateSectorInfo
-
-type SealTicket = ffi.SealTicket
-
-type SealSeed = ffi.SealSeed
-
-type PublicPieceInfo = ffi.PublicPieceInfo
-
-type RawSealPreCommitOutput ffi.RawSealPreCommitOutput
-
-type EPostCandidate = ffi.Candidate
-
-const CommLen = ffi.CommitmentBytesLen
 
 type WorkerCfg struct {
 	NoPreCommit bool
@@ -37,8 +21,11 @@ type SectorBuilder struct {
 	ds    datastore.Batching
 	numLk sync.Mutex
 
-	ssize   abi.SectorSize
 	lastNum abi.SectorNumber
+
+	sealProofType abi.RegisteredProof
+	postProofType abi.RegisteredProof
+	ssize         abi.SectorSize // a function of sealProofType and postProofType
 
 	Miner address.Address
 
@@ -75,15 +62,15 @@ type remote struct {
 	busy      uint64 // only for metrics
 }
 
-type JsonRSPCO struct {
-	CommD []byte
-	CommR []byte
+type JsonEncodablePreCommitOutput struct {
+	CommD []byte // UnsealedCID
+	CommR []byte // SealedCID
 }
 
 type SealRes struct {
 	Err   string
 	GoErr error `json:"-"`
 
-	Proof []byte
-	Rspco JsonRSPCO
+	Proof abi.SealProof
+	Rspco JsonEncodablePreCommitOutput
 }

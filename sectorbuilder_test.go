@@ -13,14 +13,15 @@ import (
 	"time"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
-	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
-	"github.com/filecoin-project/go-sectorbuilder/fs"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
+	"github.com/pkg/errors"
 
-	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,52 +31,49 @@ func init() {
 	logging.SetLogLevel("*", "INFO") //nolint: errcheck
 }
 
-const sectorSize = 1024
+var sectorSize = abi.SectorSize(1024)
+var sealProofType = abi.RegisteredProof_StackedDRG1KiBSeal
+var postProofType = abi.RegisteredProof_StackedDRG1KiBPoSt
 
 type seal struct {
-	num abi.SectorNumber
-
-	pco sectorbuilder.RawSealPreCommitOutput
-	ppi sectorbuilder.PublicPieceInfo
-
-	ticket sectorbuilder.SealTicket
+	num         abi.SectorNumber
+	sealedCID   cid.Cid
+	unsealedCID cid.Cid
+	pi          abi.PieceInfo
+	ticket      abi.SealRandomness
 }
 
 func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, num abi.SectorNumber, done func()) {
-	dlen := sectorbuilder.UserBytesForSectorSize(sectorSize)
+	dlen := abi.PaddedPieceSize(sectorSize).Unpadded()
 
 	var err error
 	r := io.LimitReader(rand.New(rand.NewSource(42+int64(num))), int64(dlen))
-	s.ppi, err = sb.AddPiece(context.TODO(), dlen, num, r, []abi.UnpaddedPieceSize{})
+	s.pi, err = sb.AddPiece(context.TODO(), dlen, num, r, []abi.UnpaddedPieceSize{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	s.ticket = sectorbuilder.SealTicket{
-		BlockHeight: 5,
-		TicketBytes: [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2},
-	}
+	s.ticket = abi.SealRandomness{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2}
 
-	s.pco, err = sb.SealPreCommit(context.TODO(), num, s.ticket, []sectorbuilder.PublicPieceInfo{s.ppi})
+	sealedCID, unsealedCID, err := sb.SealPreCommit(context.TODO(), num, s.ticket, []abi.PieceInfo{s.pi})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
+	s.sealedCID = sealedCID
+	s.unsealedCID = unsealedCID
 
 	done()
 }
 
 func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()) {
-	seed := sectorbuilder.SealSeed{
-		BlockHeight: 15,
-		TicketBytes: [32]byte{0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9},
-	}
+	seed := abi.InteractiveSealRandomness{0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
 
-	proof, err := sb.SealCommit(context.TODO(), s.num, s.ticket, seed, []sectorbuilder.PublicPieceInfo{s.ppi}, s.pco)
+	proof, err := sb.SealCommit(context.TODO(), s.num, s.ticket, seed, []abi.PieceInfo{s.pi}, s.sealedCID, s.unsealedCID)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := sectorbuilder.ProofVerifier.VerifySeal(sectorSize, s.pco.CommR[:], s.pco.CommD[:], sb.Miner, s.ticket.TicketBytes[:], seed.TicketBytes[:], s.num, proof)
+	ok, err := sectorbuilder.ProofVerifier.VerifySeal(sealProofType, s.sealedCID, s.unsealedCID, sb.Miner, s.ticket, seed, s.num, proof)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -88,35 +86,41 @@ func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()
 }
 
 func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Time {
-	cSeed := [32]byte{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
+	cSeed := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
 
-	ppi := make([]ffi.PublicSectorInfo, len(seals))
+	psis := make([]ffi.PublicSectorInfo, len(seals))
 	for i, s := range seals {
-		ppi[i] = ffi.PublicSectorInfo{
-			SectorNum: s.num,
-			CommR:     s.pco.CommR,
+		psis[i] = ffi.PublicSectorInfo{
+			PoStProofType: postProofType,
+			SealedCID:     s.sealedCID,
+			SectorNum:     s.num,
 		}
 	}
 
-	ssi := sectorbuilder.NewSortedPublicSectorInfo(ppi)
+	ssi := ffi.NewSortedPublicSectorInfo(psis...)
 
-	candndates, err := sb.GenerateEPostCandidates(ssi, cSeed, []abi.SectorNumber{})
+	candidates, err := sb.GenerateEPostCandidates(ssi, cSeed, []abi.SectorNumber{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	genCandidates := time.Now()
 
-	if len(candndates) != 1 {
+	if len(candidates) != 1 {
 		t.Fatal("expected 1 candidate")
 	}
 
-	postProof, err := sb.ComputeElectionPoSt(ssi, cSeed[:], candndates)
+	candidatesPrime := make([]abi.PoStCandidate, len(candidates))
+	for idx := range candidatesPrime {
+		candidatesPrime[idx] = candidates[idx].Candidate
+	}
+
+	postProof, err := sb.ComputeElectionPoSt(ssi, cSeed, candidatesPrime)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := sectorbuilder.ProofVerifier.VerifyElectionPost(context.TODO(), sb.SectorSize(), ssi, cSeed[:], postProof, candndates, sb.Miner)
+	ok, err := sectorbuilder.ProofVerifier.VerifyElectionPost(context.TODO(), ssi, cSeed, postProof, candidatesPrime, sb.Miner)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -127,6 +131,18 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	return genCandidates
 }
 
+func getGrothParamFileAndVerifyingKeys(s abi.SectorSize) {
+	dat, err := ioutil.ReadFile("./parameters.json")
+	if err != nil {
+		panic(errors.Wrap(err, "failed to read contents of ./parameters.json"))
+	}
+
+	err = paramfetch.GetParams(dat, uint64(s))
+	if err != nil {
+		panic(errors.Wrap(err, "failed to acquire Groth parameters for 1KiB sectors"))
+	}
+}
+
 // TestDownloadParams exists only so that developers and CI can pre-download
 // Groth parameters and verifying keys before running the tests which rely on
 // those parameters and keys. To do this, run the following command:
@@ -134,9 +150,7 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 // go test -run=^TestDownloadParams
 //
 func TestDownloadParams(t *testing.T) {
-	if err := paramfetch.GetParams(sectorSize); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 }
 
 func TestSealAndVerify(t *testing.T) {
@@ -145,9 +159,7 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(sectorSize); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 
 	ds := datastore.NewMapDatastore()
 
@@ -173,7 +185,7 @@ func TestSealAndVerify(t *testing.T) {
 		},
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(paths, sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(paths, sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -213,7 +225,7 @@ func TestSealAndVerify(t *testing.T) {
 	epost := time.Now()
 
 	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(paths, sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(paths, sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -236,9 +248,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(sectorSize); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 
 	ds := datastore.NewMapDatastore()
 
@@ -247,7 +257,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -276,7 +286,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	precommit := time.Now()
 
 	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -300,9 +310,7 @@ func TestSealAndVerify2(t *testing.T) {
 	}
 	_ = os.Setenv("RUST_LOG", "info")
 
-	if err := paramfetch.GetParams(sectorSize); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	getGrothParamFileAndVerifyingKeys(sectorSize)
 
 	ds := datastore.NewMapDatastore()
 
@@ -311,7 +319,7 @@ func TestSealAndVerify2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -359,7 +367,7 @@ func TestAcquireID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -374,7 +382,7 @@ func TestAcquireID(t *testing.T) {
 	assertAcquire(2)
 	assertAcquire(3)
 
-	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sectorSize, ds)
+	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -385,36 +393,5 @@ func TestAcquireID(t *testing.T) {
 
 	if err := os.RemoveAll(dir); err != nil {
 		t.Error(err)
-	}
-}
-
-// TestVerifyEmpty tests a certain assumption
-func TestVerifyEmpty(t *testing.T) {
-	cSeed := [32]byte{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
-	sr := [32]byte{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 43, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
-	t0101, err := address.NewIDAddress(101)
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-
-	ok, err := sectorbuilder.ProofVerifier.VerifyFallbackPost(
-		context.TODO(),
-		1024,
-		sectorbuilder.NewSortedPublicSectorInfo([]ffi.PublicSectorInfo{
-			{SectorNum: 1, CommR: sr},
-			{SectorNum: 2, CommR: sr},
-		}),
-		cSeed[:],
-		nil, // 0s
-		nil, // 0s
-		t0101,
-		2) //fault everything
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-	if !ok {
-		t.Error("proof not ok")
 	}
 }

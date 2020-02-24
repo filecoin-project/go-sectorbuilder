@@ -4,8 +4,10 @@ import (
 	"context"
 	"io"
 
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
@@ -13,22 +15,22 @@ import (
 type Interface interface {
 	RateLimit() func()
 
-	AddPiece(context.Context, abi.UnpaddedPieceSize, abi.SectorNumber, io.Reader, []abi.UnpaddedPieceSize) (PublicPieceInfo, error)
+	AddPiece(context.Context, abi.UnpaddedPieceSize, abi.SectorNumber, io.Reader, []abi.UnpaddedPieceSize) (abi.PieceInfo, error)
 	SectorSize() abi.SectorSize
 	AcquireSectorNumber() (abi.SectorNumber, error)
-	Scrub(SortedPublicSectorInfo) []*Fault
+	Scrub([]abi.SectorNumber) []*Fault
 
-	GenerateEPostCandidates(sectorInfo SortedPublicSectorInfo, challengeSeed [CommLen]byte, faults []abi.SectorNumber) ([]EPostCandidate, error)
-	GenerateFallbackPoSt(SortedPublicSectorInfo, [CommLen]byte, []abi.SectorNumber) ([]EPostCandidate, []byte, error)
-	ComputeElectionPoSt(sectorInfo SortedPublicSectorInfo, challengeSeed []byte, winners []EPostCandidate) ([]byte, error)
+	GenerateEPostCandidates(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error)
+	GenerateFallbackPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []byte, error)
+	ComputeElectionPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]byte, error)
 
-	SealPreCommit(context.Context, abi.SectorNumber, SealTicket, []PublicPieceInfo) (RawSealPreCommitOutput, error)
-	SealCommit(context.Context, abi.SectorNumber, SealTicket, SealSeed, []PublicPieceInfo, RawSealPreCommitOutput) ([]byte, error)
+	SealPreCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (sealedCID cid.Cid, unsealedCID cid.Cid, err error)
+	SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof abi.SealProof, err error)
 	// FinalizeSector cleans up cache, and moves it to storage filesystem
 	FinalizeSector(context.Context, abi.SectorNumber) error
 	DropStaged(context.Context, abi.SectorNumber) error
 
-	ReadPieceFromSealedSector(ctx context.Context, sectorNum abi.SectorNumber, offset UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket []byte, commD []byte) (io.ReadCloser, error)
+	ReadPieceFromSealedSector(context.Context, abi.SectorNumber, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (io.ReadCloser, error)
 
 	SectorPath(typ fs.DataType, sectorNum abi.SectorNumber) (fs.SectorPath, error)
 	AllocSectorPath(typ fs.DataType, sectorNum abi.SectorNumber, cache bool) (fs.SectorPath, error)
@@ -42,7 +44,7 @@ type Interface interface {
 type UnpaddedByteIndex uint64
 
 type Verifier interface {
-	VerifyElectionPost(ctx context.Context, sectorSize abi.SectorSize, sectorInfo SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address) (bool, error)
-	VerifyFallbackPost(ctx context.Context, sectorSize abi.SectorSize, sectorInfo SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []EPostCandidate, proverID address.Address, faults uint64) (bool, error)
-	VerifySeal(sectorSize abi.SectorSize, commR, commD []byte, proverID address.Address, ticket []byte, seed []byte, sectorNum abi.SectorNumber, proof []byte) (bool, error)
+	VerifySeal(proofType abi.RegisteredProof, sealedCID, unsealedCID cid.Cid, prover address.Address, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, sectorNum abi.SectorNumber, proof abi.SealProof) (bool, error)
+	VerifyElectionPost(ctx context.Context, sectorInfo ffi.SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []abi.PoStCandidate, prover address.Address) (bool, error)
+	VerifyFallbackPost(ctx context.Context, sectorInfo ffi.SortedPublicSectorInfo, challengeSeed []byte, proof []byte, candidates []abi.PoStCandidate, prover address.Address, faults uint64) (bool, error)
 }

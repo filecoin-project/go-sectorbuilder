@@ -8,14 +8,15 @@ import (
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
-func TempSectorbuilderDir(paths []fs.PathConfig, sectorSize abi.SectorSize, ds datastore.Batching) (*SectorBuilder, error) {
+func TempSectorbuilderDir(paths []fs.PathConfig, sealProofType, postProofType abi.RegisteredProof, ds datastore.Batching) (*SectorBuilder, error) {
 	addr, err := address.NewFromString("t0123")
 	if err != nil {
 		return nil, err
 	}
 
 	sb, err := New(&Config{
-		SectorSize: sectorSize,
+		SealProofType: sealProofType,
+		PoStProofType: postProofType,
 
 		Paths: paths,
 

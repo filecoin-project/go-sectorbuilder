@@ -9,38 +9,48 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
+	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
+	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 const PoStReservedWorkers = 1
-const PoRepProofPartitions = 10
 
 var lastSectorNumKey = datastore.NewKey("/last")
 
 var log = logging.Logger("sectorbuilder")
 
-func (rspco *RawSealPreCommitOutput) ToJson() JsonRSPCO {
-	return JsonRSPCO{
-		CommD: rspco.CommD[:],
-		CommR: rspco.CommR[:],
+func NewJsonEncodablePreCommitOutput(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonEncodablePreCommitOutput, error) {
+	commR, err := commcid.CIDToReplicaCommitmentV1(sealedCID)
+	if err != nil {
+		return JsonEncodablePreCommitOutput{}, err
 	}
+
+	commD, err := commcid.CIDToDataCommitmentV1(unsealedCID)
+	if err != nil {
+		return JsonEncodablePreCommitOutput{}, err
+	}
+
+	return JsonEncodablePreCommitOutput{
+		CommD: commD,
+		CommR: commR,
+	}, nil
 }
 
-func (rspco *JsonRSPCO) rspco() RawSealPreCommitOutput {
-	var out RawSealPreCommitOutput
-	copy(out.CommD[:], rspco.CommD)
-	copy(out.CommR[:], rspco.CommR)
-	return out
+func (r *JsonEncodablePreCommitOutput) ToTuple() (sealedCID cid.Cid, unsealedCID cid.Cid) {
+	return commcid.ReplicaCommitmentV1ToCID(r.CommR), commcid.DataCommitmentV1ToCID(r.CommD)
 }
 
 type Config struct {
-	SectorSize abi.SectorSize
-	Miner      address.Address
+	SealProofType abi.RegisteredProof
+	PoStProofType abi.RegisteredProof
+	Miner         address.Address
 
 	WorkerThreads   uint8
 	FallbackLastNum abi.SectorNumber
@@ -54,6 +64,11 @@ type Config struct {
 func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	if cfg.WorkerThreads < PoStReservedWorkers {
 		return nil, xerrors.Errorf("minimum worker threads is %d, specified %d", PoStReservedWorkers, cfg.WorkerThreads)
+	}
+
+	sectorSize, err := sizeFromConfig(*cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	var lastUsedNum abi.SectorNumber
@@ -82,8 +97,11 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 	sb := &SectorBuilder{
 		ds: ds,
 
-		ssize:   cfg.SectorSize,
 		lastNum: lastUsedNum,
+
+		sealProofType: cfg.SealProofType,
+		postProofType: cfg.PoStProofType,
+		ssize:         sectorSize,
 
 		filesystem: fs.OpenFs(cfg.Paths),
 
@@ -110,10 +128,17 @@ func New(cfg *Config, ds datastore.Batching) (*SectorBuilder, error) {
 }
 
 func NewStandalone(cfg *Config) (*SectorBuilder, error) {
+	sectorSize, err := sizeFromConfig(*cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	sb := &SectorBuilder{
 		ds: nil,
 
-		ssize: cfg.SectorSize,
+		sealProofType: cfg.SealProofType,
+		postProofType: cfg.PoStProofType,
+		ssize:         sectorSize,
 
 		Miner:      cfg.Miner,
 		filesystem: fs.OpenFs(cfg.Paths),
@@ -206,7 +231,7 @@ func (sb *SectorBuilder) AcquireSectorNumber() (abi.SectorNumber, error) {
 	return num, nil
 }
 
-func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (RawSealPreCommitOutput, error) {
+func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (sealedCID cid.Cid, unsealedCID cid.Cid, err error) {
 	atomic.AddInt32(&sb.preCommitWait, -1)
 
 	select {
@@ -215,13 +240,14 @@ func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (RawSealPreCommitO
 		if ret.Err != "" {
 			err = xerrors.New(ret.Err)
 		}
-		return ret.Rspco.rspco(), err
+
+		return commcid.ReplicaCommitmentV1ToCID(ret.Rspco.CommR), commcid.DataCommitmentV1ToCID(ret.Rspco.CommD), err
 	case <-sb.stopping:
-		return RawSealPreCommitOutput{}, xerrors.New("sectorbuilder stopped")
+		return cid.Undef, cid.Undef, xerrors.New("sectorbuilder stopped")
 	}
 }
 
-func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err error) {
+func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof, err error) {
 	atomic.AddInt32(&sb.commitWait, -1)
 
 	select {
@@ -231,11 +257,11 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err er
 		}
 		return ret.Proof, err
 	case <-sb.stopping:
-		return nil, xerrors.New("sectorbuilder stopped")
+		return abi.SealProof{}, xerrors.New("sectorbuilder stopped")
 	}
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faults []abi.SectorNumber) (SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(sectorInfo ffi.SortedPublicSectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
@@ -249,21 +275,23 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo SortedPublicSectorInfo, faul
 
 		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNum) // TODO: LOCK!
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
 		}
 
 		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNum)
 		if err != nil {
-			return SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
-			SectorNum:        s.SectorNum,
-			CommR:            s.CommR,
 			CacheDirPath:     string(cachePath),
+			PoStProofType:    s.PoStProofType,
+			SealedCID:        s.SealedCID,
 			SealedSectorPath: string(sealedPath),
+			SectorNum:        s.SectorNum,
 		})
 	}
+
 	return ffi.NewSortedPrivateSectorInfo(out...), nil
 }
 
@@ -387,4 +415,61 @@ func (sb *SectorBuilder) SetLastSectorNum(num abi.SectorNumber) error {
 
 func (sb *SectorBuilder) Stop() {
 	close(sb.stopping)
+}
+
+func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
+	if cfg.SealProofType == abi.RegisteredProof(0) {
+		return abi.SectorSize(0), xerrors.New("must specify a seal proof type from abi.RegisteredProof")
+	}
+
+	if cfg.PoStProofType == abi.RegisteredProof(0) {
+		return abi.SectorSize(0), xerrors.New("must specify a PoSt proof type from abi.RegisteredProof")
+	}
+
+	s1, err := sizeFromProofType(cfg.SealProofType)
+	if err != nil {
+		return abi.SectorSize(0), err
+	}
+
+	s2, err := sizeFromProofType(cfg.PoStProofType)
+	if err != nil {
+		return abi.SectorSize(0), err
+	}
+
+	if s1 != s2 {
+		return abi.SectorSize(0), xerrors.Errorf("seal sector size %d does not equal PoSt sector size %d", s1, s2)
+	}
+
+	return s1, nil
+}
+
+func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
+	switch p {
+	case abi.RegisteredProof_WinStackedDRG32GiBSeal:
+		return 1 << 35, nil
+	case abi.RegisteredProof_WinStackedDRG32GiBPoSt:
+		return 1 << 35, nil
+	case abi.RegisteredProof_StackedDRG32GiBSeal:
+		return 1 << 35, nil
+	case abi.RegisteredProof_StackedDRG32GiBPoSt:
+		return 1 << 35, nil
+	case abi.RegisteredProof_StackedDRG1KiBSeal:
+		return 1024, nil
+	case abi.RegisteredProof_StackedDRG1KiBPoSt:
+		return 1024, nil
+	case abi.RegisteredProof_StackedDRG16MiBSeal:
+		return 1 << 24, nil
+	case abi.RegisteredProof_StackedDRG16MiBPoSt:
+		return 1 << 24, nil
+	case abi.RegisteredProof_StackedDRG256MiBSeal:
+		return 1 << 28, nil
+	case abi.RegisteredProof_StackedDRG256MiBPoSt:
+		return 1 << 28, nil
+	case abi.RegisteredProof_StackedDRG1GiBSeal:
+		return 1 << 30, nil
+	case abi.RegisteredProof_StackedDRG1GiBPoSt:
+		return 1 << 30, nil
+	default:
+		return abi.SectorSize(0), errors.Errorf("unsupported proof type: %+v", p)
+	}
 }

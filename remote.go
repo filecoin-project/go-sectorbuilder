@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 )
 
@@ -21,12 +22,13 @@ type WorkerTask struct {
 	SectorNum abi.SectorNumber
 
 	// preCommit
-	SealTicket SealTicket
-	Pieces     []PublicPieceInfo
+	SealTicket abi.SealRandomness // Ticket
+	Pieces     []abi.PieceInfo    // (CommP, Size)
 
 	// commit
-	SealSeed SealSeed
-	Rspco    RawSealPreCommitOutput
+	SealSeed    abi.InteractiveSealRandomness // Seed
+	SealedCID   cid.Cid                       // CommR
+	UnsealedCID cid.Cid                       // CommD
 }
 
 type workerCall struct {

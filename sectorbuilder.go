@@ -453,6 +453,8 @@ func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
 		return 0, err
 	}
 
+	// values taken from https://github.com/filecoin-project/rust-fil-proofs/blob/master/filecoin-proofs/src/constants.rs#L11
+
 	switch x {
 	case abi.RegisteredProof_StackedDRG32GiBPoSt:
 		return 1 << 35, nil

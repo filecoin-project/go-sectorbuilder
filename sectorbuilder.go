@@ -448,23 +448,20 @@ func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
 }
 
 func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
-	switch p {
-	case abi.RegisteredProof_StackedDRG32GiBSeal:
-		return 32 << 20, nil
+	x, err := p.RegisteredPoStProof()
+	if err != nil {
+		return 0, err
+	}
+
+	switch x {
 	case abi.RegisteredProof_StackedDRG32GiBPoSt:
-		return 32 << 20, nil
-	case abi.RegisteredProof_StackedDRG2KiBSeal:
-		return 2 << 10, nil
+		return 1 << 35, nil
 	case abi.RegisteredProof_StackedDRG2KiBPoSt:
-		return 2 << 10, nil
-	case abi.RegisteredProof_StackedDRG8MiBSeal:
-		return 8 << 20, nil
+		return 2048, nil
 	case abi.RegisteredProof_StackedDRG8MiBPoSt:
-		return 8 << 20, nil
-	case abi.RegisteredProof_StackedDRG512MiBSeal:
-		return 512 << 20, nil
+		return 1 << 23, nil
 	case abi.RegisteredProof_StackedDRG512MiBPoSt:
-		return 512 << 20, nil
+		return 1 << 29, nil
 	default:
 		return abi.SectorSize(0), errors.Errorf("unsupported proof type: %+v", p)
 	}

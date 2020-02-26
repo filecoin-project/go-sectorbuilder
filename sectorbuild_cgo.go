@@ -286,7 +286,7 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorNum abi.Sector
 	return sealedCID, unsealedCID, nil
 }
 
-func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof abi.SealProof, err error) {
+func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof []byte, err error) {
 	atomic.AddInt32(&sb.commitWait, -1)
 
 	defer func() {
@@ -295,25 +295,25 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.Sect
 
 	cacheDir, err := sb.SectorPath(fs.DataCache, sectorNum)
 	if err != nil {
-		return abi.SealProof{}, err
+		return []byte{}, err
 	}
 	if err := sb.filesystem.Lock(ctx, cacheDir); err != nil {
-		return abi.SealProof{}, err
+		return []byte{}, err
 	}
 	defer sb.filesystem.Unlock(cacheDir)
 
 	sealedPath, err := sb.SectorPath(fs.DataSealed, sectorNum)
 	if err != nil {
-		return abi.SealProof{}, xerrors.Errorf("get sealed: %w", err)
+		return []byte{}, xerrors.Errorf("get sealed: %w", err)
 	}
 	if err := sb.filesystem.Lock(ctx, sealedPath); err != nil {
-		return abi.SealProof{}, err
+		return []byte{}, err
 	}
 	defer sb.filesystem.Unlock(sealedPath)
 
 	mid, err := address.IDFromAddress(sb.Miner)
 	if err != nil {
-		return abi.SealProof{}, err
+		return []byte{}, err
 	}
 
 	output, err := ffi.SealCommitPhase1(
@@ -332,13 +332,13 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.Sect
 		log.Warn("StandaloneSealCommit error: ", err)
 		log.Warnf("num:%d tkt:%v seed:%v, pi:%v sealedCID:%v, unsealedCID:%v", sectorNum, ticket, seed, pieces, sealedCID, unsealedCID)
 
-		return abi.SealProof{}, xerrors.Errorf("StandaloneSealCommit: %w", err)
+		return []byte{}, xerrors.Errorf("StandaloneSealCommit: %w", err)
 	}
 
 	return ffi.SealCommitPhase2(output, sectorNum, abi.ActorID(mid))
 }
 
-func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof abi.SealProof, err error) {
+func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof []byte, err error) {
 	call := workerCall{
 		task: WorkerTask{
 			Pieces:      pieces,
@@ -372,11 +372,11 @@ func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNum
 		case rl <- struct{}{}:
 			proof, err = sb.sealCommitLocal(ctx, sectorNum, ticket, seed, pieces, sealedCID, unsealedCID)
 		case <-ctx.Done():
-			return abi.SealProof{}, ctx.Err()
+			return []byte{}, ctx.Err()
 		}
 	}
 	if err != nil {
-		return abi.SealProof{}, xerrors.Errorf("commit: %w", err)
+		return []byte{}, xerrors.Errorf("commit: %w", err)
 	}
 
 	return proof, nil

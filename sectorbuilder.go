@@ -247,7 +247,7 @@ func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (sealedCID cid.Cid
 	}
 }
 
-func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof, err error) {
+func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err error) {
 	atomic.AddInt32(&sb.commitWait, -1)
 
 	select {
@@ -257,7 +257,7 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof,
 		}
 		return ret.Proof, err
 	case <-sb.stopping:
-		return abi.SealProof{}, xerrors.New("sectorbuilder stopped")
+		return []byte{}, xerrors.New("sectorbuilder stopped")
 	}
 }
 
@@ -287,10 +287,7 @@ func (sb *SectorBuilder) pubSectorToPriv(postProofType abi.RegisteredProof, sect
 			CacheDirPath:     string(cachePath),
 			PoStProofType:    postProofType,
 			SealedSectorPath: string(sealedPath),
-			SectorInfo: abi.SectorInfo{
-				SectorNumber: s.SectorNumber,
-				SealedCID:    s.SealedCID,
-			},
+			SectorInfo:       s,
 		})
 	}
 

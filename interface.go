@@ -24,7 +24,7 @@ type Interface interface {
 	ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]abi.PoStProof, error)
 
 	SealPreCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (sealedCID cid.Cid, unsealedCID cid.Cid, err error)
-	SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof abi.SealProof, err error)
+	SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof []byte, err error)
 	// FinalizeSector cleans up cache, and moves it to storage filesystem
 	FinalizeSector(context.Context, abi.SectorNumber) error
 	DropStaged(context.Context, abi.SectorNumber) error

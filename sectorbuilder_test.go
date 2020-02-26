@@ -111,8 +111,9 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	sis := make([]abi.SectorInfo, len(seals))
 	for i, s := range seals {
 		sis[i] = abi.SectorInfo{
-			SectorNumber: s.num,
-			SealedCID:    s.sealedCID,
+			RegisteredProof: sealProofType,
+			SectorNumber:    s.num,
+			SealedCID:       s.sealedCID,
 		}
 	}
 

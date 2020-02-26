@@ -295,25 +295,25 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.Sect
 
 	cacheDir, err := sb.SectorPath(fs.DataCache, sectorNum)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 	if err := sb.filesystem.Lock(ctx, cacheDir); err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 	defer sb.filesystem.Unlock(cacheDir)
 
 	sealedPath, err := sb.SectorPath(fs.DataSealed, sectorNum)
 	if err != nil {
-		return []byte{}, xerrors.Errorf("get sealed: %w", err)
+		return nil, xerrors.Errorf("get sealed: %w", err)
 	}
 	if err := sb.filesystem.Lock(ctx, sealedPath); err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 	defer sb.filesystem.Unlock(sealedPath)
 
 	mid, err := address.IDFromAddress(sb.Miner)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	output, err := ffi.SealCommitPhase1(
@@ -332,7 +332,7 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.Sect
 		log.Warn("StandaloneSealCommit error: ", err)
 		log.Warnf("num:%d tkt:%v seed:%v, pi:%v sealedCID:%v, unsealedCID:%v", sectorNum, ticket, seed, pieces, sealedCID, unsealedCID)
 
-		return []byte{}, xerrors.Errorf("StandaloneSealCommit: %w", err)
+		return nil, xerrors.Errorf("StandaloneSealCommit: %w", err)
 	}
 
 	return ffi.SealCommitPhase2(output, sectorNum, abi.ActorID(mid))
@@ -372,11 +372,11 @@ func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNum
 		case rl <- struct{}{}:
 			proof, err = sb.sealCommitLocal(ctx, sectorNum, ticket, seed, pieces, sealedCID, unsealedCID)
 		case <-ctx.Done():
-			return []byte{}, ctx.Err()
+			return nil, ctx.Err()
 		}
 	}
 	if err != nil {
-		return []byte{}, xerrors.Errorf("commit: %w", err)
+		return nil, xerrors.Errorf("commit: %w", err)
 	}
 
 	return proof, nil

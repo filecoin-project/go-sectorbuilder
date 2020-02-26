@@ -257,7 +257,7 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err er
 		}
 		return ret.Proof, err
 	case <-sb.stopping:
-		return []byte{}, xerrors.New("sectorbuilder stopped")
+		return nil, xerrors.New("sectorbuilder stopped")
 	}
 }
 

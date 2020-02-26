@@ -261,34 +261,34 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof,
 	}
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(sectorInfo ffi.SortedPublicSectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(postProofType abi.RegisteredProof, sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
 	}
 
 	var out []ffi.PrivateSectorInfo
-	for _, s := range sectorInfo.Values() {
-		if _, faulty := fmap[s.SectorNum]; faulty {
+	for _, s := range sectorInfo {
+		if _, faulty := fmap[s.SectorNumber]; faulty {
 			continue
 		}
 
-		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNum) // TODO: LOCK!
+		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNumber) // TODO: LOCK!
 		if err != nil {
-			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNumber, err)
 		}
 
-		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNum)
+		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNumber)
 		if err != nil {
-			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNumber, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
 			CacheDirPath:     string(cachePath),
-			PoStProofType:    s.PoStProofType,
+			PoStProofType:    postProofType,
 			SealedSectorPath: string(sealedPath),
 			SectorInfo: abi.SectorInfo{
-				SectorNumber: s.SectorNum,
+				SectorNumber: s.SectorNumber,
 				SealedCID:    s.SealedCID,
 			},
 		})

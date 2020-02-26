@@ -14,7 +14,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
-	fs "github.com/filecoin-project/go-sectorbuilder/fs"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
 var _ Interface = &SectorBuilder{}
@@ -382,43 +382,43 @@ func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNum
 	return proof, nil
 }
 
-func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]abi.PoStProof, error) {
-	privsects, err := sb.pubSectorToPriv(sectorInfo, nil) // TODO: faults
+func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]abi.PoStProof, error) {
+	minerActorID, err := address.IDFromAddress(sb.Miner)
 	if err != nil {
 		return nil, err
 	}
 
-	mid, err := address.IDFromAddress(sb.Miner)
+	privsects, err := sb.pubSectorToPriv(sb.postProofType, sectorInfo, nil) // TODO: faults
 	if err != nil {
 		return nil, err
 	}
 
-	return ffi.GeneratePoSt(abi.ActorID(mid), privsects, challengeSeed, winners)
+	return ffi.GeneratePoSt(abi.ActorID(minerActorID), privsects, challengeSeed, winners)
 }
 
-func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error) {
-	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
+func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error) {
+	minerActorID, err := address.IDFromAddress(sb.Miner)
 	if err != nil {
 		return nil, err
 	}
 
-	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), uint64(len(faults)))
-
-	mid, err := address.IDFromAddress(sb.Miner)
+	privsectors, err := sb.pubSectorToPriv(sb.postProofType, sectorInfo, faults)
 	if err != nil {
 		return nil, err
 	}
 
-	return ffi.GenerateCandidates(abi.ActorID(mid), challengeSeed, challengeCount, privsectors)
+	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo)), uint64(len(faults)))
+
+	return ffi.GenerateCandidates(abi.ActorID(minerActorID), challengeSeed, challengeCount, privsectors)
 }
 
-func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error) {
-	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
+func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error) {
+	privsectors, err := sb.pubSectorToPriv(sb.postProofType, sectorInfo, faults)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	challengeCount := fallbackPostChallengeCount(uint64(len(sectorInfo.Values())), uint64(len(faults)))
+	challengeCount := fallbackPostChallengeCount(uint64(len(sectorInfo)), uint64(len(faults)))
 
 	mid, err := address.IDFromAddress(sb.Miner)
 	if err != nil {

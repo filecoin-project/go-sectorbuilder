@@ -12,7 +12,8 @@ import (
 	"testing"
 	"time"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
+	"github.com/filecoin-project/go-address"
+
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
@@ -32,8 +33,8 @@ func init() {
 }
 
 var sectorSize = abi.SectorSize(1024)
-var sealProofType = abi.RegisteredProof_StackedDRG1KiBSeal
-var postProofType = abi.RegisteredProof_StackedDRG1KiBPoSt
+var sealProofType = abi.RegisteredProof_StackedDRG2KiBSeal
+var postProofType = abi.RegisteredProof_StackedDRG2KiBPoSt
 
 type seal struct {
 	num         abi.SectorNumber
@@ -73,7 +74,26 @@ func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := sectorbuilder.ProofVerifier.VerifySeal(sealProofType, s.sealedCID, s.unsealedCID, sb.Miner, s.ticket, seed, s.num, proof)
+	minerID, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	ok, err := sectorbuilder.ProofVerifier.VerifySeal(abi.SealVerifyInfo{
+		SectorID: abi.SectorID{
+			Miner:  abi.ActorID(minerID),
+			Number: s.num,
+		},
+		OnChain: abi.OnChainSealVerifyInfo{
+			SealedCID:       s.sealedCID,
+			RegisteredProof: sealProofType,
+			Proof:           proof,
+			SectorNumber:    s.num,
+		},
+		Randomness:            s.ticket,
+		InteractiveRandomness: seed,
+		UnsealedCID:           s.unsealedCID,
+	})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -86,20 +106,17 @@ func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()
 }
 
 func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Time {
-	cSeed := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
+	randomness := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
 
-	psis := make([]ffi.PublicSectorInfo, len(seals))
+	sis := make([]abi.SectorInfo, len(seals))
 	for i, s := range seals {
-		psis[i] = ffi.PublicSectorInfo{
-			PoStProofType: postProofType,
-			SealedCID:     s.sealedCID,
-			SectorNum:     s.num,
+		sis[i] = abi.SectorInfo{
+			SectorNumber: s.num,
+			SealedCID:    s.sealedCID,
 		}
 	}
 
-	ssi := ffi.NewSortedPublicSectorInfo(psis...)
-
-	candidates, err := sb.GenerateEPostCandidates(ssi, cSeed, []abi.SectorNumber{})
+	candidates, err := sb.GenerateEPostCandidates(sis, randomness, []abi.SectorNumber{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -115,12 +132,26 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 		candidatesPrime[idx] = candidates[idx].Candidate
 	}
 
-	postProof, err := sb.ComputeElectionPoSt(ssi, cSeed, candidatesPrime)
+	proofs, err := sb.ComputeElectionPoSt(sis, randomness, candidatesPrime)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := sectorbuilder.ProofVerifier.VerifyElectionPost(context.TODO(), ssi, cSeed, postProof, candidatesPrime, sb.Miner)
+	minerID, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	ePoStChallengeCount := sectorbuilder.ElectionPostChallengeCount(uint64(len(sis)), 0)
+
+	ok, err := sectorbuilder.ProofVerifier.VerifyElectionPost(context.TODO(), abi.PoStVerifyInfo{
+		Randomness:      randomness,
+		Candidates:      candidatesPrime,
+		Proofs:          proofs,
+		EligibleSectors: sis,
+		Prover:          abi.ActorID(minerID),
+		ChallengeCount:  ePoStChallengeCount,
+	})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -139,7 +170,7 @@ func getGrothParamFileAndVerifyingKeys(s abi.SectorSize) {
 
 	err = paramfetch.GetParams(dat, uint64(s))
 	if err != nil {
-		panic(errors.Wrap(err, "failed to acquire Groth parameters for 1KiB sectors"))
+		panic(errors.Wrap(err, "failed to acquire Groth parameters for 2KiB sectors"))
 	}
 }
 

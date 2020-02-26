@@ -445,7 +445,7 @@ func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
 func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
 	switch p {
 	case abi.RegisteredProof_StackedDRG32GiBSeal:
-		return 32 << 30, nil
+		return 32 << 20, nil
 	case abi.RegisteredProof_StackedDRG32GiBPoSt:
 		return 32 << 20, nil
 	case abi.RegisteredProof_StackedDRG2KiBSeal:

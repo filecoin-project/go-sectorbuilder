@@ -286,9 +286,11 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo ffi.SortedPublicSectorInfo, 
 		out = append(out, ffi.PrivateSectorInfo{
 			CacheDirPath:     string(cachePath),
 			PoStProofType:    s.PoStProofType,
-			SealedCID:        s.SealedCID,
 			SealedSectorPath: string(sealedPath),
-			SectorNum:        s.SectorNum,
+			SectorInfo: abi.SectorInfo{
+				SectorNumber: s.SectorNum,
+				SealedCID:    s.SealedCID,
+			},
 		})
 	}
 
@@ -445,30 +447,22 @@ func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
 
 func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
 	switch p {
-	case abi.RegisteredProof_WinStackedDRG32GiBSeal:
-		return 1 << 35, nil
-	case abi.RegisteredProof_WinStackedDRG32GiBPoSt:
-		return 1 << 35, nil
 	case abi.RegisteredProof_StackedDRG32GiBSeal:
-		return 1 << 35, nil
+		return 32 << 30, nil
 	case abi.RegisteredProof_StackedDRG32GiBPoSt:
-		return 1 << 35, nil
-	case abi.RegisteredProof_StackedDRG1KiBSeal:
-		return 1024, nil
-	case abi.RegisteredProof_StackedDRG1KiBPoSt:
-		return 1024, nil
-	case abi.RegisteredProof_StackedDRG16MiBSeal:
-		return 1 << 24, nil
-	case abi.RegisteredProof_StackedDRG16MiBPoSt:
-		return 1 << 24, nil
-	case abi.RegisteredProof_StackedDRG256MiBSeal:
-		return 1 << 28, nil
-	case abi.RegisteredProof_StackedDRG256MiBPoSt:
-		return 1 << 28, nil
-	case abi.RegisteredProof_StackedDRG1GiBSeal:
-		return 1 << 30, nil
-	case abi.RegisteredProof_StackedDRG1GiBPoSt:
-		return 1 << 30, nil
+		return 32 << 20, nil
+	case abi.RegisteredProof_StackedDRG2KiBSeal:
+		return 2 << 10, nil
+	case abi.RegisteredProof_StackedDRG2KiBPoSt:
+		return 2 << 10, nil
+	case abi.RegisteredProof_StackedDRG8MiBSeal:
+		return 8 << 20, nil
+	case abi.RegisteredProof_StackedDRG8MiBPoSt:
+		return 8 << 20, nil
+	case abi.RegisteredProof_StackedDRG512MiBSeal:
+		return 512 << 20, nil
+	case abi.RegisteredProof_StackedDRG512MiBPoSt:
+		return 512 << 20, nil
 	default:
 		return abi.SectorSize(0), errors.Errorf("unsupported proof type: %+v", p)
 	}

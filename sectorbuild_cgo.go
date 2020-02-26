@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -124,13 +125,18 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNu
 			return nil, err
 		}
 
+		mid, err := address.IDFromAddress(sb.Miner)
+		if err != nil {
+			return nil, err
+		}
+
 		err = ffi.Unseal(
 			sb.sealProofType,
 			string(cacheDir),
 			string(sealedPath),
 			string(unsealedPath),
 			sectorNum,
-			addressToProverID(sb.Miner),
+			abi.ActorID(mid),
 			ticket,
 			unsealedCID,
 		)
@@ -252,6 +258,11 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorNum abi.Sector
 		return cid.Undef, cid.Undef, xerrors.Errorf("get staged: %w", err)
 	}
 
+	mid, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		return cid.Undef, cid.Undef, err
+	}
+
 	// TODO: context cancellation respect
 	p1o, err := ffi.SealPreCommitPhase1(
 		sb.sealProofType,
@@ -259,7 +270,7 @@ func (sb *SectorBuilder) SealPreCommit(ctx context.Context, sectorNum abi.Sector
 		string(stagedPath),
 		string(sealedPath),
 		sectorNum,
-		addressToProverID(sb.Miner),
+		abi.ActorID(mid),
 		ticket,
 		pieces,
 	)
@@ -291,13 +302,28 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.Sect
 	}
 	defer sb.filesystem.Unlock(cacheDir)
 
+	sealedPath, err := sb.SectorPath(fs.DataSealed, sectorNum)
+	if err != nil {
+		return abi.SealProof{}, xerrors.Errorf("get sealed: %w", err)
+	}
+	if err := sb.filesystem.Lock(ctx, sealedPath); err != nil {
+		return abi.SealProof{}, err
+	}
+	defer sb.filesystem.Unlock(sealedPath)
+
+	mid, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		return abi.SealProof{}, err
+	}
+
 	output, err := ffi.SealCommitPhase1(
 		sb.sealProofType,
 		sealedCID,
 		unsealedCID,
 		string(cacheDir),
+		string(sealedPath),
 		sectorNum,
-		addressToProverID(sb.Miner),
+		abi.ActorID(mid),
 		ticket,
 		seed,
 		pieces,
@@ -309,7 +335,7 @@ func (sb *SectorBuilder) sealCommitLocal(ctx context.Context, sectorNum abi.Sect
 		return abi.SealProof{}, xerrors.Errorf("StandaloneSealCommit: %w", err)
 	}
 
-	return ffi.SealCommitPhase2(output, sectorNum, addressToProverID(sb.Miner))
+	return ffi.SealCommitPhase2(output, sectorNum, abi.ActorID(mid))
 }
 
 func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof abi.SealProof, err error) {
@@ -356,15 +382,18 @@ func (sb *SectorBuilder) SealCommit(ctx context.Context, sectorNum abi.SectorNum
 	return proof, nil
 }
 
-func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]byte, error) {
+func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]abi.PoStProof, error) {
 	privsects, err := sb.pubSectorToPriv(sectorInfo, nil) // TODO: faults
 	if err != nil {
 		return nil, err
 	}
 
-	proverID := addressToProverID(sb.Miner)
+	mid, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		return nil, err
+	}
 
-	return ffi.GeneratePoSt(proverID, privsects, challengeSeed, winners)
+	return ffi.GeneratePoSt(abi.ActorID(mid), privsects, challengeSeed, winners)
 }
 
 func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error) {
@@ -375,12 +404,15 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo ffi.SortedPublicSect
 
 	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo.Values())), uint64(len(faults)))
 
-	proverID := addressToProverID(sb.Miner)
+	mid, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		return nil, err
+	}
 
-	return ffi.GenerateCandidates(proverID, challengeSeed, challengeCount, privsectors)
+	return ffi.GenerateCandidates(abi.ActorID(mid), challengeSeed, challengeCount, privsectors)
 }
 
-func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []byte, error) {
+func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo ffi.SortedPublicSectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error) {
 	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
 	if err != nil {
 		return nil, nil, err
@@ -388,8 +420,12 @@ func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo ffi.SortedPublicSectorI
 
 	challengeCount := fallbackPostChallengeCount(uint64(len(sectorInfo.Values())), uint64(len(faults)))
 
-	proverID := addressToProverID(sb.Miner)
-	candidates, err := ffi.GenerateCandidates(proverID, challengeSeed, challengeCount, privsectors)
+	mid, err := address.IDFromAddress(sb.Miner)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	candidates, err := ffi.GenerateCandidates(abi.ActorID(mid), challengeSeed, challengeCount, privsectors)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -399,6 +435,6 @@ func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo ffi.SortedPublicSectorI
 		winners[idx] = candidates[idx].Candidate
 	}
 
-	proof, err := ffi.GeneratePoSt(proverID, privsectors, challengeSeed, winners)
+	proof, err := ffi.GeneratePoSt(abi.ActorID(mid), privsectors, challengeSeed, winners)
 	return candidates, proof, err
 }

@@ -7,7 +7,7 @@ require (
 	github.com/filecoin-project/go-address v0.0.0-20200107215422-da8eea2842b5
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20200208005934-2b8bd03caca5
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200218225740-47c639bab663
-	github.com/filecoin-project/specs-actors v0.0.0-20200213011857-91a589664341
+	github.com/filecoin-project/specs-actors v0.0.0-20200225235005-cd871b9e0267
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
 	github.com/ipfs/go-cid v0.0.5
 	github.com/ipfs/go-datastore v0.1.1

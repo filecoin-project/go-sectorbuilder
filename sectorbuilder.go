@@ -261,7 +261,7 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err er
 	}
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(postProofType abi.RegisteredProof, sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
@@ -281,6 +281,11 @@ func (sb *SectorBuilder) pubSectorToPriv(postProofType abi.RegisteredProof, sect
 		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNumber)
 		if err != nil {
 			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNumber, err)
+		}
+
+		postProofType, err := s.RegisteredProof.RegisteredPoStProof()
+		if err != nil {
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{

@@ -388,7 +388,7 @@ func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challe
 		return nil, err
 	}
 
-	privsects, err := sb.pubSectorToPriv(sb.postProofType, sectorInfo, nil) // TODO: faults
+	privsects, err := sb.pubSectorToPriv(sectorInfo, nil) // TODO: faults
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, ch
 		return nil, err
 	}
 
-	privsectors, err := sb.pubSectorToPriv(sb.postProofType, sectorInfo, faults)
+	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +413,7 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, ch
 }
 
 func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error) {
-	privsectors, err := sb.pubSectorToPriv(sb.postProofType, sectorInfo, faults)
+	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
 	if err != nil {
 		return nil, nil, err
 	}

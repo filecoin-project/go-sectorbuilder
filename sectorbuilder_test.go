@@ -32,7 +32,7 @@ func init() {
 	logging.SetLogLevel("*", "INFO") //nolint: errcheck
 }
 
-var sectorSize = abi.SectorSize(1024)
+var sectorSize = abi.SectorSize(2048)
 var sealProofType = abi.RegisteredProof_StackedDRG2KiBSeal
 var postProofType = abi.RegisteredProof_StackedDRG2KiBPoSt
 

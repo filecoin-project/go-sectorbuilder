@@ -5,6 +5,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 
 	"github.com/filecoin-project/go-sectorbuilder/fs"
@@ -63,8 +64,8 @@ type remote struct {
 }
 
 type JsonEncodablePreCommitOutput struct {
-	CommD []byte // UnsealedCID
-	CommR []byte // SealedCID
+	CommD cid.Cid
+	CommR cid.Cid
 }
 
 type SealRes struct {

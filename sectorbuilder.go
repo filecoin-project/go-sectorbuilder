@@ -9,7 +9,6 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
-	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
@@ -27,24 +26,14 @@ var lastSectorNumKey = datastore.NewKey("/last")
 var log = logging.Logger("sectorbuilder")
 
 func NewJsonEncodablePreCommitOutput(sealedCID cid.Cid, unsealedCID cid.Cid) (JsonEncodablePreCommitOutput, error) {
-	commR, err := commcid.CIDToReplicaCommitmentV1(sealedCID)
-	if err != nil {
-		return JsonEncodablePreCommitOutput{}, err
-	}
-
-	commD, err := commcid.CIDToDataCommitmentV1(unsealedCID)
-	if err != nil {
-		return JsonEncodablePreCommitOutput{}, err
-	}
-
 	return JsonEncodablePreCommitOutput{
-		CommD: commD,
-		CommR: commR,
+		CommD: unsealedCID,
+		CommR: sealedCID,
 	}, nil
 }
 
 func (r *JsonEncodablePreCommitOutput) ToTuple() (sealedCID cid.Cid, unsealedCID cid.Cid) {
-	return commcid.ReplicaCommitmentV1ToCID(r.CommR), commcid.DataCommitmentV1ToCID(r.CommD)
+	return r.CommR, r.CommD
 }
 
 type Config struct {
@@ -241,7 +230,7 @@ func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (sealedCID cid.Cid
 			err = xerrors.New(ret.Err)
 		}
 
-		return commcid.ReplicaCommitmentV1ToCID(ret.Rspco.CommR), commcid.DataCommitmentV1ToCID(ret.Rspco.CommD), err
+		return ret.Rspco.CommR, ret.Rspco.CommD, err
 	case <-sb.stopping:
 		return cid.Undef, cid.Undef, xerrors.New("sectorbuilder stopped")
 	}

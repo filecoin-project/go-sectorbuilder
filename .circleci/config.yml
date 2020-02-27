@@ -64,6 +64,10 @@ jobs:
   build-all:
     executor: golang
     steps:
+      - run:
+          name: Install Rust
+          command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
       - install-deps
       - prepare
       - go/mod-download

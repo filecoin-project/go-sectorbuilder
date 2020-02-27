@@ -236,7 +236,7 @@ func (sb *SectorBuilder) sealPreCommitRemote(call workerCall) (sealedCID cid.Cid
 	}
 }
 
-func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof, err error) {
+func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof []byte, err error) {
 	atomic.AddInt32(&sb.commitWait, -1)
 
 	select {
@@ -246,38 +246,42 @@ func (sb *SectorBuilder) sealCommitRemote(call workerCall) (proof abi.SealProof,
 		}
 		return ret.Proof, err
 	case <-sb.stopping:
-		return abi.SealProof{}, xerrors.New("sectorbuilder stopped")
+		return nil, xerrors.New("sectorbuilder stopped")
 	}
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(sectorInfo ffi.SortedPublicSectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
 	}
 
 	var out []ffi.PrivateSectorInfo
-	for _, s := range sectorInfo.Values() {
-		if _, faulty := fmap[s.SectorNum]; faulty {
+	for _, s := range sectorInfo {
+		if _, faulty := fmap[s.SectorNumber]; faulty {
 			continue
 		}
 
-		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNum) // TODO: LOCK!
+		cachePath, err := sb.SectorPath(fs.DataCache, s.SectorNumber) // TODO: LOCK!
 		if err != nil {
-			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting cache paths for sector %d: %w", s.SectorNumber, err)
 		}
 
-		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNum)
+		sealedPath, err := sb.SectorPath(fs.DataSealed, s.SectorNumber)
 		if err != nil {
-			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNum, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("getting sealed paths for sector %d: %w", s.SectorNumber, err)
+		}
+
+		postProofType, err := s.RegisteredProof.RegisteredPoStProof()
+		if err != nil {
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
 			CacheDirPath:     string(cachePath),
-			PoStProofType:    s.PoStProofType,
-			SealedCID:        s.SealedCID,
+			PoStProofType:    postProofType,
 			SealedSectorPath: string(sealedPath),
-			SectorNum:        s.SectorNum,
+			SectorInfo:       s,
 		})
 	}
 
@@ -433,31 +437,22 @@ func sizeFromConfig(cfg Config) (abi.SectorSize, error) {
 }
 
 func sizeFromProofType(p abi.RegisteredProof) (abi.SectorSize, error) {
-	switch p {
-	case abi.RegisteredProof_WinStackedDRG32GiBSeal:
-		return 1 << 35, nil
-	case abi.RegisteredProof_WinStackedDRG32GiBPoSt:
-		return 1 << 35, nil
-	case abi.RegisteredProof_StackedDRG32GiBSeal:
-		return 1 << 35, nil
+	x, err := p.RegisteredPoStProof()
+	if err != nil {
+		return 0, err
+	}
+
+	// values taken from https://github.com/filecoin-project/rust-fil-proofs/blob/master/filecoin-proofs/src/constants.rs#L11
+
+	switch x {
 	case abi.RegisteredProof_StackedDRG32GiBPoSt:
 		return 1 << 35, nil
-	case abi.RegisteredProof_StackedDRG1KiBSeal:
-		return 1024, nil
-	case abi.RegisteredProof_StackedDRG1KiBPoSt:
-		return 1024, nil
-	case abi.RegisteredProof_StackedDRG16MiBSeal:
-		return 1 << 24, nil
-	case abi.RegisteredProof_StackedDRG16MiBPoSt:
-		return 1 << 24, nil
-	case abi.RegisteredProof_StackedDRG256MiBSeal:
-		return 1 << 28, nil
-	case abi.RegisteredProof_StackedDRG256MiBPoSt:
-		return 1 << 28, nil
-	case abi.RegisteredProof_StackedDRG1GiBSeal:
-		return 1 << 30, nil
-	case abi.RegisteredProof_StackedDRG1GiBPoSt:
-		return 1 << 30, nil
+	case abi.RegisteredProof_StackedDRG2KiBPoSt:
+		return 2048, nil
+	case abi.RegisteredProof_StackedDRG8MiBPoSt:
+		return 1 << 23, nil
+	case abi.RegisteredProof_StackedDRG512MiBPoSt:
+		return 1 << 29, nil
 	default:
 		return abi.SectorSize(0), errors.Errorf("unsupported proof type: %+v", p)
 	}

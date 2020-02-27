@@ -72,6 +72,6 @@ type SealRes struct {
 	Err   string
 	GoErr error `json:"-"`
 
-	Proof abi.SealProof
+	Proof []byte
 	Rspco JsonEncodablePreCommitOutput
 }

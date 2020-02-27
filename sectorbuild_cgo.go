@@ -17,7 +17,7 @@ import (
 	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
-var _ Interface = &SectorBuilder{}
+var _ Basic = &SectorBuilder{}
 
 func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize abi.UnpaddedPieceSize, sectorNum abi.SectorNumber, file io.Reader, existingPieceSizes []abi.UnpaddedPieceSize) (abi.PieceInfo, error) {
 	atomic.AddInt32(&sb.addPieceWait, 1)

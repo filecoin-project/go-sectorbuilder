@@ -3,6 +3,7 @@ package sectorbuilder
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -17,6 +18,19 @@ const (
 	FTSealed
 	FTCache
 )
+
+func (t SectorFileType) String() string {
+	switch t {
+	case FTUnsealed:
+		return "unsealed"
+	case FTSealed:
+		return "sealed"
+	case FTCache:
+		return "cache"
+	default:
+		return fmt.Sprintf("<unknown %d>", t)
+	}
+}
 
 type SectorPaths struct {
 	Id abi.SectorID

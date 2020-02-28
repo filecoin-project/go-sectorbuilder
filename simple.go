@@ -6,10 +6,12 @@ import (
 	"context"
 	"io"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	"go.opencensus.io/trace"
+
+	ffi "github.com/filecoin-project/filecoin-ffi"
+
+	"github.com/filecoin-project/specs-actors/actors/abi"
 )
 
 var _ Verifier = ProofVerifier

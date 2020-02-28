@@ -11,37 +11,16 @@ import (
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
-
-	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
-func (sb *SectorBuilder) SectorName(sectorNum abi.SectorNumber) string {
-	return fs.SectorName(sb.Miner, sectorNum)
-}
-
-func (sb *SectorBuilder) SectorPath(typ fs.DataType, sectorNum abi.SectorNumber) (fs.SectorPath, error) {
-	return sb.filesystem.FindSector(typ, sb.Miner, sectorNum)
-}
-
-func (sb *SectorBuilder) AllocSectorPath(typ fs.DataType, sectorNum abi.SectorNumber, cache bool) (fs.SectorPath, error) {
-	return sb.filesystem.AllocSector(typ, sb.Miner, sb.ssize, cache, sectorNum)
-}
-
-func (sb *SectorBuilder) ReleaseSector(typ fs.DataType, path fs.SectorPath) {
-	sb.filesystem.Release(path, sb.ssize)
-}
-
-func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorNum abi.SectorNumber) error {
-	dir, err := sb.filesystem.FindSector(fs.DataCache, sb.Miner, sectorNum)
+func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.SectorNumber) error {
+	paths, done , err := sb.sectors.AcquireSector(sectorNum, FTCache, 0, false)
 	if err != nil {
-		return xerrors.Errorf("getting cache dir: %w", err)
+		return xerrors.Errorf("acquiring sector cache path: %w", err)
 	}
-	if err := sb.filesystem.Lock(ctx, dir); err != nil {
-		return xerrors.Errorf("acquiring sector lock: %w", err)
-	}
-	defer sb.filesystem.Unlock(dir)
+	defer done()
 
-	files, err := ioutil.ReadDir(string(dir))
+	files, err := ioutil.ReadDir(paths.Cache)
 	if err != nil {
 		return xerrors.Errorf("readdir: %w", err)
 	}
@@ -57,7 +36,7 @@ func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorNum abi.SectorNumb
 			continue
 		}
 
-		if err := os.Remove(filepath.Join(string(dir), file.Name())); err != nil {
+		if err := os.Remove(filepath.Join(paths.Cache, file.Name())); err != nil {
 			return xerrors.Errorf("rm %s: %w", file.Name(), err)
 		}
 	}
@@ -66,7 +45,7 @@ func (sb *SectorBuilder) TrimCache(ctx context.Context, sectorNum abi.SectorNumb
 }
 
 func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
-	dir, err := sb.SectorPath(fs.DataCache, sectorNum)
+	/*dir, err := sb.SectorPath(fs.DataCache, sectorNum)
 	if err != nil {
 		return false, xerrors.Errorf("getting cache dir: %w", err)
 	}
@@ -78,6 +57,9 @@ func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
 
 	// TODO: slightly more sophisticated check
 	return len(ents) == 10, nil
+	*/
+	log.Warnf("stub CanCommit")
+	 return true, nil
 }
 
 func toReadableFile(r io.Reader, n int64) (*os.File, func() error, error) {

@@ -2,6 +2,7 @@ package sectorbuilder
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -16,6 +17,14 @@ const (
 	FTSealed
 	FTCache
 )
+
+type SectorPaths struct {
+	Id abi.SectorID
+
+	Unsealed string
+	Sealed   string
+	Cache    string
+}
 
 // Interfaces provided by this Package
 
@@ -32,19 +41,17 @@ type Sealer interface {
 	SealCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (output []byte, err error)
 	SealCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out []byte) (proof []byte, err error)
 
-	// FinalizeSector cleans up cache, and moves it to storage filesystem
+	// FinalizeSector trims the cache
 	FinalizeSector(context.Context, abi.SectorNumber) error
 }
 
 type Validator interface {
 	CanCommit(sector SectorPaths) (bool, error)
-	CanProve(sector SectorPaths) (Fault, error)
-
+	CanProve(sector SectorPaths) error
 }
 
 type Basic interface {
 	SectorSize() abi.SectorSize
-	AcquireSectorNumber() (abi.SectorNumber, error)
 
 	Prover
 	Sealer
@@ -60,19 +67,16 @@ type Verifier interface {
 	VerifyFallbackPost(ctx context.Context, info abi.PoStVerifyInfo) (bool, error)
 }
 
-type SectorPaths struct {
-	Id abi.SectorID
-
-	Unsealed string
-	Sealed   string
-	Cache    string
-}
-
 // Interfaces consumed by this package
+
+var ErrSectorNotFound = errors.New("sector not found")
 
 type SectorProvider interface {
 	AcquireSectorNumber() (abi.SectorNumber, error)
 
 	FinalizeSector(abi.SectorNumber) error // move to long-term storage
+
+	// * returns ErrSectorNotFound if a requested existing sector doesn't exist
+	// * returns an error when allocate is set, and existing isn't, and the sector exists
 	AcquireSector(id abi.SectorNumber, existing SectorFileType, allocate SectorFileType, sealing bool) (SectorPaths, func(), error)
 }

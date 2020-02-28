@@ -17,7 +17,7 @@ type Basic struct {
 	Root   string
 }
 
-func (b Basic) AcquireSectorNumber() (abi.SectorNumber, error) {
+func (b *Basic) AcquireSectorNumber() (abi.SectorNumber, error) {
 	b.NextID++
 	return b.NextID, nil
 }

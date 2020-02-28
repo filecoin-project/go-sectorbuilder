@@ -407,6 +407,8 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, ch
 		return nil, err
 	}
 
+	challengeSeed[31] = 0
+
 	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo)), uint64(len(faults)))
 
 	return ffi.GenerateCandidates(abi.ActorID(minerActorID), challengeSeed, challengeCount, privsectors)

@@ -18,6 +18,14 @@ func (sb *SectorBuilder) SectorSize() abi.SectorSize {
 	return sb.ssize
 }
 
+func (sb *SectorBuilder) SealProofType() abi.RegisteredProof {
+	return sb.sealProofType
+}
+
+func (sb *SectorBuilder) PoStProofType() abi.RegisteredProof {
+	return sb.postProofType
+}
+
 type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}

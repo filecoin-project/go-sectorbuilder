@@ -16,6 +16,8 @@ type Interface interface {
 
 	AddPiece(context.Context, abi.UnpaddedPieceSize, abi.SectorNumber, io.Reader, []abi.UnpaddedPieceSize) (abi.PieceInfo, error)
 	SectorSize() abi.SectorSize
+	SealProofType() abi.RegisteredProof
+	PoStProofType() abi.RegisteredProof
 	AcquireSectorNumber() (abi.SectorNumber, error)
 	Scrub([]abi.SectorNumber) []*Fault
 

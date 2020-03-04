@@ -46,6 +46,8 @@ func verifyPost(ctx context.Context, info abi.PoStVerifyInfo) (bool, error) {
 	_, span := trace.StartSpan(ctx, "VerifyPoSt")
 	defer span.End()
 
+	info.Randomness[31] = 0
+
 	return ffi.VerifyPoSt(info)
 }
 

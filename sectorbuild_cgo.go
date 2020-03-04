@@ -388,6 +388,8 @@ func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challe
 		return nil, err
 	}
 
+	challengeSeed[31] = 0
+
 	privsects, err := sb.pubSectorToPriv(sectorInfo, nil) // TODO: faults
 	if err != nil {
 		return nil, err
@@ -426,6 +428,8 @@ func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, chall
 	if err != nil {
 		return nil, nil, err
 	}
+
+	challengeSeed[31] = 0
 
 	candidates, err := ffi.GenerateCandidates(abi.ActorID(mid), challengeSeed, challengeCount, privsectors)
 	if err != nil {

@@ -20,6 +20,14 @@ func (sb *SectorBuilder) SectorSize() abi.SectorSize {
 	return sb.ssize
 }
 
+func (sb *SectorBuilder) SealProofType() abi.RegisteredProof {
+	return sb.sealProofType
+}
+
+func (sb *SectorBuilder) PoStProofType() abi.RegisteredProof {
+	return sb.postProofType
+}
+
 type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}
@@ -39,6 +47,8 @@ func (proofVerifier) VerifyFallbackPost(ctx context.Context, info abi.PoStVerify
 func verifyPost(ctx context.Context, info abi.PoStVerifyInfo) (bool, error) {
 	_, span := trace.StartSpan(ctx, "VerifyPoSt")
 	defer span.End()
+
+	info.Randomness[31] = 0
 
 	return ffi.VerifyPoSt(info)
 }

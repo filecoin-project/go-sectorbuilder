@@ -106,7 +106,7 @@ func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()
 }
 
 func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Time {
-	randomness := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
+	randomness := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 7}
 
 	sis := make([]abi.SectorInfo, len(seals))
 	for i, s := range seals {

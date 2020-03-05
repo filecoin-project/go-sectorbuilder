@@ -83,7 +83,7 @@ func GenerateUnsealedCID(proofType abi.RegisteredProof, pieces []abi.PieceInfo) 
 		n := bits.OnesCount64(toFill)
 		for i := 0; i < n; i++ {
 			next := bits.TrailingZeros64(toFill)
-			psize := uint64(1) << next
+			psize := uint64(1) << uint(next)
 			toFill ^= psize
 
 			unpadded := abi.PaddedPieceSize(psize).Unpadded()

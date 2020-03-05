@@ -26,7 +26,7 @@ func TestComms(t *testing.T) {
 
 	for i := 1; i < levels-2; i++ {
 		var err error
-		sz := abi.UnpaddedPieceSize(127 << i)
+		sz := abi.UnpaddedPieceSize(127 << uint(i))
 		fmt.Println(i, sz)
 		r := io.LimitReader(&NullReader{}, int64(sz))
 
@@ -65,7 +65,7 @@ func TestCommsSmall(t *testing.T) {
 
 	for i := 1; i < lvls-2; i++ {
 		var err error
-		sz := abi.UnpaddedPieceSize(127 << i)
+		sz := abi.UnpaddedPieceSize(127 << uint(i))
 		fmt.Println(i, sz)
 		r := io.LimitReader(&NullReader{}, int64(sz))
 

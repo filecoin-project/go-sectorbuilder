@@ -3,7 +3,7 @@ module github.com/filecoin-project/go-sectorbuilder
 go 1.13
 
 require (
-	github.com/filecoin-project/filecoin-ffi v0.0.0-20200226205820-4da0bccccefb
+	github.com/filecoin-project/filecoin-ffi v0.0.0-20200304181354-4446ff8a1bb9
 	github.com/filecoin-project/go-address v0.0.2-0.20200218010043-eb9bb40ed5be
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200218225740-47c639bab663
 	github.com/filecoin-project/specs-actors v0.0.0-20200226200336-94c9b92b2775

@@ -8,10 +8,11 @@ import (
 	"io"
 	"math/bits"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	"go.opencensus.io/trace"
+
+	ffi "github.com/filecoin-project/filecoin-ffi"
 )
 
 var _ Verifier = ProofVerifier
@@ -99,18 +100,15 @@ func GenerateUnsealedCID(proofType abi.RegisteredProof, pieces []abi.PieceInfo) 
 // TODO: remove this method after implementing it along side the registered proofs and importing it from there.
 func SectorSizeForRegisteredProof(p abi.RegisteredProof) (abi.SectorSize, error) {
 	switch p {
-	case abi.RegisteredProof_StackedDRG32GiBSeal:
-    case abi.RegisteredProof_StackedDRG32GiBPoSt:
-    	return 32 << 30, nil
-	case abi.RegisteredProof_StackedDRG2KiBSeal:
-    case abi.RegisteredProof_StackedDRG2KiBPoSt:
-    	return 2 << 10, nil
-	case abi.RegisteredProof_StackedDRG8MiBSeal:
-    case abi.RegisteredProof_StackedDRG8MiBPoSt:
-    	return 8 << 20, nil
-	case abi.RegisteredProof_StackedDRG512MiBSeal:
-    case abi.RegisteredProof_StackedDRG512MiBPoSt:
-    	return 512 << 20, nil
+	case abi.RegisteredProof_StackedDRG32GiBSeal, abi.RegisteredProof_StackedDRG32GiBPoSt:
+		return 32 << 30, nil
+	case abi.RegisteredProof_StackedDRG2KiBSeal, abi.RegisteredProof_StackedDRG2KiBPoSt:
+		return 2 << 10, nil
+	case abi.RegisteredProof_StackedDRG8MiBSeal, abi.RegisteredProof_StackedDRG8MiBPoSt:
+		return 8 << 20, nil
+	case abi.RegisteredProof_StackedDRG512MiBSeal, abi.RegisteredProof_StackedDRG512MiBPoSt:
+		return 512 << 20, nil
+	default:
+		return 0, fmt.Errorf("unsupported registered proof %d", p)
 	}
-	return 0, fmt.Errorf("unsupported registered proof %d", p)
 }

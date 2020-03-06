@@ -12,6 +12,7 @@ import (
 )
 
 type SectorFileType int
+
 const (
 	FTUnsealed SectorFileType = 1 << iota
 	FTSealed

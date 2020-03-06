@@ -96,7 +96,7 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNu
 		return nil, err
 	}
 
-	sealed, doneSealed, err := sb.sectors.AcquireSector(ctx, sectorNum, FTUnsealed | FTCache, 0, false)
+	sealed, doneSealed, err := sb.sectors.AcquireSector(ctx, sectorNum, FTUnsealed|FTCache, 0, false)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire sealed/cache sector path: %w", err)
 	}
@@ -129,7 +129,6 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNu
 		return nil, err
 	}
 
-
 	if _, err := f.Seek(int64(offset), io.SeekStart); err != nil {
 		return nil, xerrors.Errorf("seek: %w", err)
 	}
@@ -146,7 +145,7 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNu
 }
 
 func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
-	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum,  FTUnsealed, FTSealed | FTCache, true)
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTUnsealed, FTSealed|FTCache, true)
 	if err != nil {
 		return nil, xerrors.Errorf("acquiring sector paths: %w", err)
 	}
@@ -192,11 +191,11 @@ func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.Secto
 	if err != nil {
 		return nil, xerrors.Errorf("presealing sector %d (%s): %w", sectorNum, paths.Unsealed, err)
 	}
-	return p1o,nil
+	return p1o, nil
 }
 
 func (sb *SectorBuilder) SealPreCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out storage.PreCommit1Out) (cid.Cid, cid.Cid, error) {
-	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTSealed | FTCache, 0, true)
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTSealed|FTCache, 0, true)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("acquiring sector paths: %w", err)
 	}
@@ -211,7 +210,7 @@ func (sb *SectorBuilder) SealPreCommit2(ctx context.Context, sectorNum abi.Secto
 }
 
 func (sb *SectorBuilder) SealCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (storage.Commit1Out, error) {
-	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTSealed | FTCache, 0, true)
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTSealed|FTCache, 0, true)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire sector paths: %w", err)
 	}

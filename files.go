@@ -13,7 +13,7 @@ import (
 )
 
 func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.SectorNumber) error {
-	paths, done , err := sb.sectors.AcquireSector(ctx, sectorNum, FTCache, 0, false)
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTCache, 0, false)
 	if err != nil {
 		return xerrors.Errorf("acquiring sector cache path: %w", err)
 	}
@@ -38,7 +38,7 @@ func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
 	*/
 
 	log.Warnf("stub CanCommit")
-	 return true, nil
+	return true, nil
 }
 
 func toReadableFile(r io.Reader, n int64) (*os.File, func() error, error) {

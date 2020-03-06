@@ -211,8 +211,8 @@ func TestSealAndVerify(t *testing.T) {
 	}
 
 	sp := &fs.Basic{
-		Miner:  addr,
-		Root:   cdir,
+		Miner: addr,
+		Root:  cdir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
@@ -283,8 +283,8 @@ func TestSealPoStNoCommit(t *testing.T) {
 		Miner:         addr,
 	}
 	sp := &fs.Basic{
-		Miner:  addr,
-		Root:   dir,
+		Miner: addr,
+		Root:  dir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
@@ -349,8 +349,8 @@ func TestSealAndVerify2(t *testing.T) {
 		Miner:         addr,
 	}
 	sp := &fs.Basic{
-		Miner:  addr,
-		Root:   dir,
+		Miner: addr,
+		Root:  dir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {

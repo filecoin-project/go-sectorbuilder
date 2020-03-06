@@ -14,7 +14,7 @@ import (
 
 type Basic struct {
 	Miner address.Address
-	Root   string
+	Root  string
 }
 
 func (b *Basic) AcquireSector(ctx context.Context, id abi.SectorNumber, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
@@ -28,7 +28,7 @@ func (b *Basic) AcquireSector(ctx context.Context, id abi.SectorNumber, existing
 	os.Mkdir(filepath.Join(b.Root, sectorbuilder.FTCache.String()), 0755)
 
 	return sectorbuilder.SectorPaths{
-		Id:       abi.SectorID{
+		Id: abi.SectorID{
 			Miner:  abi.ActorID(mid),
 			Number: id,
 		},

@@ -318,6 +318,16 @@ func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, chall
 	return ffiToStorageCandidates(candidates), proof, err
 }
 
+func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.SectorNumber) error {
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTCache, 0, false)
+	if err != nil {
+		return xerrors.Errorf("acquiring sector cache path: %w", err)
+	}
+	defer done()
+
+	return ffi.ClearCache(paths.Cache)
+}
+
 func ffiToStorageCandidates(pc []ffi.PoStCandidateWithTicket) []storage.PoStCandidateWithTicket {
 	out := make([]storage.PoStCandidateWithTicket, len(pc))
 	for i := range out {

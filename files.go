@@ -1,26 +1,13 @@
 package sectorbuilder
 
 import (
-	"context"
 	"io"
 	"os"
 	"sync"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
-
-	ffi "github.com/filecoin-project/filecoin-ffi"
 )
-
-func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.SectorNumber) error {
-	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTCache, 0, false)
-	if err != nil {
-		return xerrors.Errorf("acquiring sector cache path: %w", err)
-	}
-	defer done()
-
-	return ffi.ClearCache(paths.Cache)
-}
 
 func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
 	/*dir, err := sb.SectorPath(fs.DataCache, sectorNum)

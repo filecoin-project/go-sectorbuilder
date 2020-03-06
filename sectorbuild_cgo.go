@@ -160,6 +160,17 @@ func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.Secto
 	}
 
 	if err := os.Mkdir(paths.Cache, 0755); err != nil {
+		if os.IsExist(err) {
+			log.Warnf("existing cache in %s; removing", paths.Cache)
+
+			if err := os.RemoveAll(paths.Cache); err != nil {
+				return nil, xerrors.Errorf("remove existing sector cache from %s (sector %d): %w", paths.Cache, sectorNum, err)
+			}
+
+			if err := os.Mkdir(paths.Cache, 0755); err != nil {
+				return nil, xerrors.Errorf("mkdir cache path after cleanup: %w", err)
+			}
+		}
 		return nil, err
 	}
 

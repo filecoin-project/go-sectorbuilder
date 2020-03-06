@@ -86,11 +86,7 @@ type Verifier interface {
 var ErrSectorNotFound = errors.New("sector not found")
 
 type SectorProvider interface {
-	AcquireSectorNumber() (abi.SectorNumber, error)
-
-	FinalizeSector(abi.SectorNumber) error // move to long-term storage
-
 	// * returns ErrSectorNotFound if a requested existing sector doesn't exist
 	// * returns an error when allocate is set, and existing isn't, and the sector exists
-	AcquireSector(id abi.SectorNumber, existing SectorFileType, allocate SectorFileType, sealing bool) (SectorPaths, func(), error)
+	AcquireSector(ctx context.Context, id abi.SectorNumber, existing SectorFileType, allocate SectorFileType, sealing bool) (SectorPaths, func(), error)
 }

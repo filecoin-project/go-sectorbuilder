@@ -3,14 +3,13 @@ package sectorbuilder
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
+
+	ffi "github.com/filecoin-project/filecoin-ffi"
 )
 
 func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.SectorNumber) error {
@@ -20,28 +19,7 @@ func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.Secto
 	}
 	defer done()
 
-	files, err := ioutil.ReadDir(paths.Cache)
-	if err != nil {
-		return xerrors.Errorf("readdir: %w", err)
-	}
-
-	for _, file := range files {
-		if !strings.HasSuffix(file.Name(), ".dat") { // _aux probably
-			continue
-		}
-		if strings.HasSuffix(file.Name(), "-data-tree-r-last.dat") { // Want to keep
-			continue
-		}
-		if strings.HasSuffix(file.Name(), "-data-tree-d.dat") { // Want to keep
-			continue
-		}
-
-		if err := os.Remove(filepath.Join(paths.Cache, file.Name())); err != nil {
-			return xerrors.Errorf("rm %s: %w", file.Name(), err)
-		}
-	}
-
-	return nil
+	return ffi.ClearCache(paths.Cache)
 }
 
 func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
@@ -58,6 +36,7 @@ func (sb *SectorBuilder) CanCommit(sectorNum abi.SectorNumber) (bool, error) {
 	// TODO: slightly more sophisticated check
 	return len(ents) == 10, nil
 	*/
+
 	log.Warnf("stub CanCommit")
 	 return true, nil
 }

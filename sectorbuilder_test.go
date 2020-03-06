@@ -46,7 +46,7 @@ func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, num abi.
 
 	var err error
 	r := io.LimitReader(rand.New(rand.NewSource(42+int64(num))), int64(dlen))
-	s.pi, err = sb.AddPiece(context.TODO(), dlen, num, r, []abi.UnpaddedPieceSize{})
+	s.pi, err = sb.AddPiece(context.TODO(), num, []abi.UnpaddedPieceSize{}, dlen, r)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -212,7 +212,6 @@ func TestSealAndVerify(t *testing.T) {
 
 	sp := &fs.Basic{
 		Miner:  addr,
-		NextID: 0,
 		Root:   cdir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
@@ -230,10 +229,7 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	defer cleanup()
 
-	si, err := sp.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	si := abi.SectorNumber(1)
 
 	s := seal{num: si}
 
@@ -288,7 +284,6 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	sp := &fs.Basic{
 		Miner:  addr,
-		NextID: 0,
 		Root:   dir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
@@ -307,10 +302,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	defer cleanup()
 
-	si, err := sp.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	si := abi.SectorNumber(1)
 
 	s := seal{num: si}
 
@@ -358,7 +350,6 @@ func TestSealAndVerify2(t *testing.T) {
 	}
 	sp := &fs.Basic{
 		Miner:  addr,
-		NextID: 0,
 		Root:   dir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
@@ -376,14 +367,8 @@ func TestSealAndVerify2(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	si1, err := sp.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	si2, err := sp.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	si1 := abi.SectorNumber(1)
+	si2 := abi.SectorNumber(2)
 
 	s1 := seal{num: si1}
 	s2 := seal{num: si2}

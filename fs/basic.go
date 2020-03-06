@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,20 +14,10 @@ import (
 
 type Basic struct {
 	Miner address.Address
-	NextID abi.SectorNumber
 	Root   string
 }
 
-func (b *Basic) AcquireSectorNumber() (abi.SectorNumber, error) {
-	b.NextID++
-	return b.NextID, nil
-}
-
-func (b *Basic) FinalizeSector(abi.SectorNumber) error {
-	return nil
-}
-
-func (b *Basic) AcquireSector(id abi.SectorNumber, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
+func (b *Basic) AcquireSector(ctx context.Context, id abi.SectorNumber, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
 	mid, err := address.IDFromAddress(b.Miner)
 	if err != nil {
 		return sectorbuilder.SectorPaths{}, nil, err

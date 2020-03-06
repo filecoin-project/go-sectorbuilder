@@ -12,13 +12,14 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 )
 
 var _ Basic = &SectorBuilder{}
 
-func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize abi.UnpaddedPieceSize, sectorNum abi.SectorNumber, file io.Reader, existingPieceSizes []abi.UnpaddedPieceSize) (abi.PieceInfo, error) {
+func (sb *SectorBuilder) AddPiece(ctx context.Context, sectorNum abi.SectorNumber, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storage.Data) (abi.PieceInfo, error) {
 	f, werr, err := toReadableFile(file, int64(pieceSize))
 	if err != nil {
 		return abi.PieceInfo{}, err
@@ -28,7 +29,7 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize abi.UnpaddedPie
 	var stagedFile *os.File
 	var stagedPath SectorPaths
 	if len(existingPieceSizes) == 0 {
-		stagedPath, done, err = sb.sectors.AcquireSector(sectorNum, 0, FTUnsealed, true)
+		stagedPath, done, err = sb.sectors.AcquireSector(ctx, sectorNum, 0, FTUnsealed, true)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("acquire unsealed sector: %w", err)
 		}
@@ -38,7 +39,7 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize abi.UnpaddedPie
 			return abi.PieceInfo{}, xerrors.Errorf("opening sector file: %w", err)
 		}
 	} else {
-		stagedPath, done, err = sb.sectors.AcquireSector(sectorNum, FTUnsealed, 0, true)
+		stagedPath, done, err = sb.sectors.AcquireSector(ctx, sectorNum, FTUnsealed, 0, true)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("acquire unsealed sector: %w", err)
 		}
@@ -70,7 +71,7 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, pieceSize abi.UnpaddedPie
 }
 
 func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNum abi.SectorNumber, offset UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealedCID cid.Cid) (io.ReadCloser, error) {
-	path, doneUnsealed, err := sb.sectors.AcquireSector(sectorNum, FTUnsealed, FTUnsealed, false)
+	path, doneUnsealed, err := sb.sectors.AcquireSector(ctx, sectorNum, FTUnsealed, FTUnsealed, false)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire unsealed sector path: %w", err)
 	}
@@ -95,7 +96,7 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNu
 		return nil, err
 	}
 
-	sealed, doneSealed, err := sb.sectors.AcquireSector(sectorNum, FTUnsealed | FTCache, 0, false)
+	sealed, doneSealed, err := sb.sectors.AcquireSector(ctx, sectorNum, FTUnsealed | FTCache, 0, false)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire sealed/cache sector path: %w", err)
 	}
@@ -144,8 +145,8 @@ func (sb *SectorBuilder) ReadPieceFromSealedSector(ctx context.Context, sectorNu
 	}, nil
 }
 
-func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out []byte, err error) {
-	paths, done, err := sb.sectors.AcquireSector(sectorNum,  FTUnsealed, FTSealed | FTCache, true)
+func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum,  FTUnsealed, FTSealed | FTCache, true)
 	if err != nil {
 		return nil, xerrors.Errorf("acquiring sector paths: %w", err)
 	}
@@ -194,8 +195,8 @@ func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.Secto
 	return p1o,nil
 }
 
-func (sb *SectorBuilder) SealPreCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out []byte) (cid.Cid, cid.Cid, error) {
-	paths, done, err := sb.sectors.AcquireSector(sectorNum, FTSealed | FTCache, 0, true)
+func (sb *SectorBuilder) SealPreCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out storage.PreCommit1Out) (cid.Cid, cid.Cid, error) {
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTSealed | FTCache, 0, true)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("acquiring sector paths: %w", err)
 	}
@@ -209,8 +210,8 @@ func (sb *SectorBuilder) SealPreCommit2(ctx context.Context, sectorNum abi.Secto
 	return sealedCID, unsealedCID, nil
 }
 
-func (sb *SectorBuilder) SealCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) ([]byte, error) {
-	paths, done, err := sb.sectors.AcquireSector(sectorNum, FTSealed | FTCache, 0, true)
+func (sb *SectorBuilder) SealCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (storage.Commit1Out, error) {
+	paths, done, err := sb.sectors.AcquireSector(ctx, sectorNum, FTSealed | FTCache, 0, true)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire sector paths: %w", err)
 	}
@@ -242,7 +243,7 @@ func (sb *SectorBuilder) SealCommit1(ctx context.Context, sectorNum abi.SectorNu
 	return output, nil
 }
 
-func (sb *SectorBuilder) SealCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out []byte) (proof []byte, err error) {
+func (sb *SectorBuilder) SealCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out storage.Commit1Out) (storage.Proof, error) {
 	mid, err := address.IDFromAddress(sb.Miner)
 	if err != nil {
 		return nil, err
@@ -259,7 +260,7 @@ func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challe
 
 	challengeSeed[31] = 0
 
-	privsects, err := sb.pubSectorToPriv(sectorInfo, nil) // TODO: faults
+	privsects, err := sb.pubSectorToPriv(context.TODO(), sectorInfo, nil) // TODO: faults
 	if err != nil {
 		return nil, err
 	}
@@ -267,13 +268,13 @@ func (sb *SectorBuilder) ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challe
 	return ffi.GeneratePoSt(abi.ActorID(minerActorID), privsects, challengeSeed, winners)
 }
 
-func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error) {
+func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]storage.PoStCandidateWithTicket, error) {
 	minerActorID, err := address.IDFromAddress(sb.Miner)
 	if err != nil {
 		return nil, err
 	}
 
-	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
+	privsectors, err := sb.pubSectorToPriv(context.TODO(), sectorInfo, faults)
 	if err != nil {
 		return nil, err
 	}
@@ -281,12 +282,16 @@ func (sb *SectorBuilder) GenerateEPostCandidates(sectorInfo []abi.SectorInfo, ch
 	challengeSeed[31] = 0
 
 	challengeCount := ElectionPostChallengeCount(uint64(len(sectorInfo)), uint64(len(faults)))
+	pc, err := ffi.GenerateCandidates(abi.ActorID(minerActorID), challengeSeed, challengeCount, privsectors)
+	if err != nil {
+		return nil, err
+	}
 
-	return ffi.GenerateCandidates(abi.ActorID(minerActorID), challengeSeed, challengeCount, privsectors)
+	return ffiToStorageCandidates(pc), nil
 }
 
-func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error) {
-	privsectors, err := sb.pubSectorToPriv(sectorInfo, faults)
+func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]storage.PoStCandidateWithTicket, []abi.PoStProof, error) {
+	privsectors, err := sb.pubSectorToPriv(context.TODO(), sectorInfo, faults)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -311,5 +316,17 @@ func (sb *SectorBuilder) GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, chall
 	}
 
 	proof, err := ffi.GeneratePoSt(abi.ActorID(mid), privsectors, challengeSeed, winners)
-	return candidates, proof, err
+	return ffiToStorageCandidates(candidates), proof, err
+}
+
+func ffiToStorageCandidates(pc []ffi.PoStCandidateWithTicket) []storage.PoStCandidateWithTicket {
+	out := make([]storage.PoStCandidateWithTicket, len(pc))
+	for i := range out {
+		out[i] = storage.PoStCandidateWithTicket{
+			Candidate: pc[i].Candidate,
+			Ticket:    pc[i].Ticket,
+		}
+	}
+
+	return out
 }

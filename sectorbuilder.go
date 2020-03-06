@@ -1,6 +1,8 @@
 package sectorbuilder
 
 import (
+	"context"
+
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
@@ -54,7 +56,7 @@ func New(sectors SectorProvider, cfg *Config) (*SectorBuilder, error) {
 }
 
 
-func (sb *SectorBuilder) pubSectorToPriv(sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(ctx context.Context, sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
@@ -66,7 +68,7 @@ func (sb *SectorBuilder) pubSectorToPriv(sectorInfo []abi.SectorInfo, faults []a
 			continue
 		}
 
-		paths, done, err := sb.sectors.AcquireSector(s.SectorNumber, FTCache| FTSealed, 0, false)
+		paths, done, err := sb.sectors.AcquireSector(ctx, s.SectorNumber, FTCache| FTSealed, 0, false)
 		if err != nil {
 			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquire sector paths: %w", err)
 		}

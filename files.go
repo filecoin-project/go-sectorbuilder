@@ -13,7 +13,7 @@ import (
 )
 
 func (sb *SectorBuilder) FinalizeSector(ctx context.Context, sectorNum abi.SectorNumber) error {
-	paths, done , err := sb.sectors.AcquireSector(sectorNum, FTCache, 0, false)
+	paths, done , err := sb.sectors.AcquireSector(ctx, sectorNum, FTCache, 0, false)
 	if err != nil {
 		return xerrors.Errorf("acquiring sector cache path: %w", err)
 	}

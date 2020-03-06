@@ -7,9 +7,8 @@ import (
 	"io"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ipfs/go-cid"
-
-	ffi "github.com/filecoin-project/filecoin-ffi"
 )
 
 type SectorFileType int
@@ -40,34 +39,22 @@ type SectorPaths struct {
 	Cache    string
 }
 
-// Interfaces provided by this Package
-
-type Prover interface {
-	GenerateEPostCandidates(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error)
-	GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error)
-	ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]abi.PoStProof, error)
-}
-
-type Sealer interface {
-	AddPiece(context.Context, abi.UnpaddedPieceSize, abi.SectorNumber, io.Reader, []abi.UnpaddedPieceSize) (abi.PieceInfo, error)
-	SealPreCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out []byte, err error)
-	SealPreCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out []byte) (sealedCID cid.Cid, unsealedCID cid.Cid, err error)
-	SealCommit1(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (output []byte, err error)
-	SealCommit2(ctx context.Context, sectorNum abi.SectorNumber, phase1Out []byte) (proof []byte, err error)
-
-	// FinalizeSector trims the cache
-	FinalizeSector(context.Context, abi.SectorNumber) error
-}
-
 type Validator interface {
 	CanCommit(sector SectorPaths) (bool, error)
 	CanProve(sector SectorPaths) error
 }
 
+type Sealer interface {
+	storage.Sealer
+
+	// TODO: storage.Storage also has a NewSector which we don't support here
+	AddPiece(ctx context.Context, sector abi.SectorNumber, pieceSizes []abi.UnpaddedPieceSize, newPieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error)
+}
+
 type Basic interface {
 	SectorSize() abi.SectorSize
 
-	Prover
+	storage.Prover
 	Sealer
 
 	ReadPieceFromSealedSector(context.Context, abi.SectorNumber, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (io.ReadCloser, error)

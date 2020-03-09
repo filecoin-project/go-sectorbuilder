@@ -170,8 +170,9 @@ func (sb *SectorBuilder) SealPreCommit1(ctx context.Context, sectorNum abi.Secto
 			if err := os.Mkdir(paths.Cache, 0755); err != nil {
 				return nil, xerrors.Errorf("mkdir cache path after cleanup: %w", err)
 			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 
 	var sum abi.UnpaddedPieceSize

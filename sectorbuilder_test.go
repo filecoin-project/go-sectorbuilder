@@ -17,15 +17,11 @@ import (
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/go-sectorbuilder/fs"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -45,31 +41,39 @@ type seal struct {
 }
 
 func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, num abi.SectorNumber, done func()) {
+	defer done()
 	dlen := abi.PaddedPieceSize(sectorSize).Unpadded()
 
 	var err error
 	r := io.LimitReader(rand.New(rand.NewSource(42+int64(num))), int64(dlen))
-	s.pi, err = sb.AddPiece(context.TODO(), dlen, num, r, []abi.UnpaddedPieceSize{})
+	s.pi, err = sb.AddPiece(context.TODO(), num, []abi.UnpaddedPieceSize{}, dlen, r)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	s.ticket = abi.SealRandomness{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2}
 
-	sealedCID, unsealedCID, err := sb.SealPreCommit(context.TODO(), num, s.ticket, []abi.PieceInfo{s.pi})
+	p1, err := sb.SealPreCommit1(context.TODO(), num, s.ticket, []abi.PieceInfo{s.pi})
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	sealedCID, unsealedCID, err := sb.SealPreCommit2(context.TODO(), num, p1)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 	s.sealedCID = sealedCID
 	s.unsealedCID = unsealedCID
-
-	done()
 }
 
 func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()) {
+	defer done()
 	seed := abi.InteractiveSealRandomness{0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
 
-	proof, err := sb.SealCommit(context.TODO(), s.num, s.ticket, seed, []abi.PieceInfo{s.pi}, s.sealedCID, s.unsealedCID)
+	pc1, err := sb.SealCommit1(context.TODO(), s.num, s.ticket, seed, []abi.PieceInfo{s.pi}, s.sealedCID, s.unsealedCID)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	proof, err := sb.SealCommit2(context.TODO(), s.num, pc1)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -101,8 +105,6 @@ func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()
 	if !ok {
 		t.Fatal("proof failed to validate")
 	}
-
-	done()
 }
 
 func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Time {
@@ -193,52 +195,41 @@ func TestSealAndVerify(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	ds := datastore.NewMapDatastore()
-
 	cdir, err := ioutil.TempDir("", "sbtest-c-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sdir, err := ioutil.TempDir("", "sbtest-s-")
+	addr, err := address.NewFromString("t0123")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	paths := []fs.PathConfig{
-		{
-			Path:   cdir,
-			Cache:  true,
-			Weight: 1,
-		},
-		{
-			Path:   sdir,
-			Cache:  false,
-			Weight: 1,
-		},
+	cfg := &sectorbuilder.Config{
+		SealProofType: sealProofType,
+		PoStProofType: postProofType,
+		Miner:         addr,
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(paths, sealProofType, postProofType, ds)
+	sp := &fs.Basic{
+		Miner: addr,
+		Root:  cdir,
+	}
+	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 	cleanup := func() {
 		if t.Failed() {
-			fmt.Printf("not removing %s, %s\n", cdir, sdir)
+			fmt.Printf("not removing %s\n", cdir)
 			return
 		}
 		if err := os.RemoveAll(cdir); err != nil {
 			t.Error(err)
 		}
-		if err := os.RemoveAll(sdir); err != nil {
-			t.Error(err)
-		}
 	}
 	defer cleanup()
 
-	si, err := sb.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	si := abi.SectorNumber(1)
 
 	s := seal{num: si}
 
@@ -255,12 +246,6 @@ func TestSealAndVerify(t *testing.T) {
 	genCandidiates := post(t, sb, s)
 
 	epost := time.Now()
-
-	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(paths, sealProofType, postProofType, ds)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
 
 	post(t, sb, s)
 
@@ -282,17 +267,30 @@ func TestSealPoStNoCommit(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	ds := datastore.NewMapDatastore()
-
 	dir, err := ioutil.TempDir("", "sbtest")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
+	addr, err := address.NewFromString("t0123")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &sectorbuilder.Config{
+		SealProofType: sealProofType,
+		PoStProofType: postProofType,
+		Miner:         addr,
+	}
+	sp := &fs.Basic{
+		Miner: addr,
+		Root:  dir,
+	}
+	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
+
 	cleanup := func() {
 		if t.Failed() {
 			fmt.Printf("not removing %s\n", dir)
@@ -304,10 +302,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	defer cleanup()
 
-	si, err := sb.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	si := abi.SectorNumber(1)
 
 	s := seal{num: si}
 
@@ -317,13 +312,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 
 	precommit := time.Now()
 
-	// Restart sectorbuilder, re-run post
-	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	if err := sb.TrimCache(context.TODO(), 1); err != nil {
+	if err := sb.FinalizeSector(context.TODO(), 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -340,21 +329,34 @@ func TestSealAndVerify2(t *testing.T) {
 	if runtime.NumCPU() < 10 && os.Getenv("CI") == "" { // don't bother on slow hardware
 		t.Skip("this is slow")
 	}
-	_ = os.Setenv("RUST_LOG", "info")
+	_ = os.Setenv("RUST_LOG", "trace")
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
-
-	ds := datastore.NewMapDatastore()
 
 	dir, err := ioutil.TempDir("", "sbtest")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
+	addr, err := address.NewFromString("t0123")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &sectorbuilder.Config{
+		SealProofType: sealProofType,
+		PoStProofType: postProofType,
+		Miner:         addr,
+	}
+	sp := &fs.Basic{
+		Miner: addr,
+		Root:  dir,
+	}
+	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
+
 	cleanup := func() {
 		if err := os.RemoveAll(dir); err != nil {
 			t.Error(err)
@@ -365,14 +367,8 @@ func TestSealAndVerify2(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	si1, err := sb.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	si2, err := sb.AcquireSectorNumber()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	si1 := abi.SectorNumber(1)
+	si2 := abi.SectorNumber(2)
 
 	s1 := seal{num: si1}
 	s2 := seal{num: si2}
@@ -389,41 +385,4 @@ func TestSealAndVerify2(t *testing.T) {
 	wg.Wait()
 
 	post(t, sb, s1, s2)
-}
-
-func TestAcquireID(t *testing.T) {
-	ds := datastore.NewMapDatastore()
-
-	dir, err := ioutil.TempDir("", "sbtest")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sb, err := sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	assertAcquire := func(expect abi.SectorNumber) {
-		num, err := sb.AcquireSectorNumber()
-		require.NoError(t, err)
-		assert.Equal(t, expect, num)
-	}
-
-	assertAcquire(1)
-	assertAcquire(2)
-	assertAcquire(3)
-
-	sb, err = sectorbuilder.TempSectorbuilderDir(sectorbuilder.SimplePath(dir), sealProofType, postProofType, ds)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	assertAcquire(4)
-	assertAcquire(5)
-	assertAcquire(6)
-
-	if err := os.RemoveAll(dir); err != nil {
-		t.Error(err)
-	}
 }

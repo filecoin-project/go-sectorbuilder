@@ -2,44 +2,63 @@ package sectorbuilder
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ipfs/go-cid"
-
-	"github.com/filecoin-project/go-sectorbuilder/fs"
 )
 
-type Interface interface {
-	RateLimit() func()
+type SectorFileType int
 
-	AddPiece(context.Context, abi.UnpaddedPieceSize, abi.SectorNumber, io.Reader, []abi.UnpaddedPieceSize) (abi.PieceInfo, error)
+const (
+	FTUnsealed SectorFileType = 1 << iota
+	FTSealed
+	FTCache
+)
+
+func (t SectorFileType) String() string {
+	switch t {
+	case FTUnsealed:
+		return "unsealed"
+	case FTSealed:
+		return "sealed"
+	case FTCache:
+		return "cache"
+	default:
+		return fmt.Sprintf("<unknown %d>", t)
+	}
+}
+
+type SectorPaths struct {
+	Id abi.SectorID
+
+	Unsealed string
+	Sealed   string
+	Cache    string
+}
+
+type Validator interface {
+	CanCommit(sector SectorPaths) (bool, error)
+	CanProve(sector SectorPaths) error
+}
+
+type Sealer interface {
+	storage.Sealer
+
+	// TODO: storage.Storage also has a NewSector which we don't support here
+	AddPiece(ctx context.Context, sector abi.SectorNumber, pieceSizes []abi.UnpaddedPieceSize, newPieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error)
+}
+
+type Basic interface {
 	SectorSize() abi.SectorSize
-	SealProofType() abi.RegisteredProof
-	PoStProofType() abi.RegisteredProof
-	AcquireSectorNumber() (abi.SectorNumber, error)
-	Scrub([]abi.SectorNumber) []*Fault
 
-	GenerateEPostCandidates(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, error)
-	GenerateFallbackPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, faults []abi.SectorNumber) ([]ffi.PoStCandidateWithTicket, []abi.PoStProof, error)
-	ComputeElectionPoSt(sectorInfo []abi.SectorInfo, challengeSeed abi.PoStRandomness, winners []abi.PoStCandidate) ([]abi.PoStProof, error)
-
-	SealPreCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, pieces []abi.PieceInfo) (sealedCID cid.Cid, unsealedCID cid.Cid, err error)
-	SealCommit(ctx context.Context, sectorNum abi.SectorNumber, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, sealedCID cid.Cid, unsealedCID cid.Cid) (proof []byte, err error)
-	// FinalizeSector cleans up cache, and moves it to storage filesystem
-	FinalizeSector(context.Context, abi.SectorNumber) error
-	DropStaged(context.Context, abi.SectorNumber) error
+	storage.Prover
+	Sealer
 
 	ReadPieceFromSealedSector(context.Context, abi.SectorNumber, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (io.ReadCloser, error)
-
-	SectorPath(typ fs.DataType, sectorNum abi.SectorNumber) (fs.SectorPath, error)
-	AllocSectorPath(typ fs.DataType, sectorNum abi.SectorNumber, cache bool) (fs.SectorPath, error)
-	ReleaseSector(fs.DataType, fs.SectorPath)
-	CanCommit(sectorNum abi.SectorNumber) (bool, error)
-	WorkerStats() WorkerStats
-	AddWorker(context.Context, WorkerCfg) (<-chan WorkerTask, error)
-	TaskDone(context.Context, uint64, SealRes) error
 }
 
 type UnpaddedByteIndex uint64
@@ -48,4 +67,14 @@ type Verifier interface {
 	VerifySeal(abi.SealVerifyInfo) (bool, error)
 	VerifyElectionPost(ctx context.Context, info abi.PoStVerifyInfo) (bool, error)
 	VerifyFallbackPost(ctx context.Context, info abi.PoStVerifyInfo) (bool, error)
+}
+
+// Interfaces consumed by this package
+
+var ErrSectorNotFound = errors.New("sector not found")
+
+type SectorProvider interface {
+	// * returns ErrSectorNotFound if a requested existing sector doesn't exist
+	// * returns an error when allocate is set, and existing isn't, and the sector exists
+	AcquireSector(ctx context.Context, id abi.SectorNumber, existing SectorFileType, allocate SectorFileType, sealing bool) (SectorPaths, func(), error)
 }

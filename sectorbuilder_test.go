@@ -12,11 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/go-address"
-
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/ipfs/go-cid"
+	"github.com/filecoin-project/specs-storage/storage"
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 
@@ -33,70 +31,60 @@ var sealProofType = abi.RegisteredProof_StackedDRG2KiBSeal
 var postProofType = abi.RegisteredProof_StackedDRG2KiBPoSt
 
 type seal struct {
-	num         abi.SectorNumber
-	sealedCID   cid.Cid
-	unsealedCID cid.Cid
-	pi          abi.PieceInfo
-	ticket      abi.SealRandomness
+	id     abi.SectorID
+	cids   storage.SectorCids
+	pi     abi.PieceInfo
+	ticket abi.SealRandomness
 }
 
-func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, num abi.SectorNumber, done func()) {
+func (s *seal) precommit(t *testing.T, sb *sectorbuilder.SectorBuilder, id abi.SectorID, done func()) {
 	defer done()
 	dlen := abi.PaddedPieceSize(sectorSize).Unpadded()
 
 	var err error
-	r := io.LimitReader(rand.New(rand.NewSource(42+int64(num))), int64(dlen))
-	s.pi, err = sb.AddPiece(context.TODO(), num, []abi.UnpaddedPieceSize{}, dlen, r)
+	r := io.LimitReader(rand.New(rand.NewSource(42+int64(id.Number))), int64(dlen))
+	s.pi, err = sb.AddPiece(context.TODO(), id, []abi.UnpaddedPieceSize{}, dlen, r)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	s.ticket = abi.SealRandomness{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2}
 
-	p1, err := sb.SealPreCommit1(context.TODO(), num, s.ticket, []abi.PieceInfo{s.pi})
+	p1, err := sb.SealPreCommit1(context.TODO(), id, s.ticket, []abi.PieceInfo{s.pi})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	sealedCID, unsealedCID, err := sb.SealPreCommit2(context.TODO(), num, p1)
+	cids, err := sb.SealPreCommit2(context.TODO(), id, p1)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	s.sealedCID = sealedCID
-	s.unsealedCID = unsealedCID
+	s.cids = cids
 }
 
 func (s *seal) commit(t *testing.T, sb *sectorbuilder.SectorBuilder, done func()) {
 	defer done()
 	seed := abi.InteractiveSealRandomness{0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9}
 
-	pc1, err := sb.SealCommit1(context.TODO(), s.num, s.ticket, seed, []abi.PieceInfo{s.pi}, s.sealedCID, s.unsealedCID)
+	pc1, err := sb.SealCommit1(context.TODO(), s.id, s.ticket, seed, []abi.PieceInfo{s.pi}, s.cids)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	proof, err := sb.SealCommit2(context.TODO(), s.num, pc1)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	minerID, err := address.IDFromAddress(sb.Miner)
+	proof, err := sb.SealCommit2(context.TODO(), s.id, pc1)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	ok, err := sectorbuilder.ProofVerifier.VerifySeal(abi.SealVerifyInfo{
-		SectorID: abi.SectorID{
-			Miner:  abi.ActorID(minerID),
-			Number: s.num,
-		},
+		SectorID: s.id,
 		OnChain: abi.OnChainSealVerifyInfo{
-			SealedCID:       s.sealedCID,
+			SealedCID:       s.cids.Sealed,
 			RegisteredProof: sealProofType,
 			Proof:           proof,
-			SectorNumber:    s.num,
+			SectorNumber:    s.id.Number,
 		},
 		Randomness:            s.ticket,
 		InteractiveRandomness: seed,
-		UnsealedCID:           s.unsealedCID,
+		UnsealedCID:           s.cids.Unsealed,
 	})
 	if err != nil {
 		t.Fatalf("%+v", err)
@@ -114,12 +102,12 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 	for i, s := range seals {
 		sis[i] = abi.SectorInfo{
 			RegisteredProof: sealProofType,
-			SectorNumber:    s.num,
-			SealedCID:       s.sealedCID,
+			SectorNumber:    s.id.Number,
+			SealedCID:       s.cids.Sealed,
 		}
 	}
 
-	candidates, err := sb.GenerateEPostCandidates(sis, randomness, []abi.SectorNumber{})
+	candidates, err := sb.GenerateEPostCandidates(context.TODO(), seals[0].id.Miner, sis, randomness, []abi.SectorNumber{})
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -135,12 +123,7 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 		candidatesPrime[idx] = candidates[idx].Candidate
 	}
 
-	proofs, err := sb.ComputeElectionPoSt(sis, randomness, candidatesPrime)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	minerID, err := address.IDFromAddress(sb.Miner)
+	proofs, err := sb.ComputeElectionPoSt(context.TODO(), seals[0].id.Miner, sis, randomness, candidatesPrime)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -152,7 +135,7 @@ func post(t *testing.T, sb *sectorbuilder.SectorBuilder, seals ...seal) time.Tim
 		Candidates:      candidatesPrime,
 		Proofs:          proofs,
 		EligibleSectors: sis,
-		Prover:          abi.ActorID(minerID),
+		Prover:          seals[0].id.Miner,
 		ChallengeCount:  ePoStChallengeCount,
 	})
 	if err != nil {
@@ -199,20 +182,15 @@ func TestSealAndVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	addr, err := address.NewFromString("t0123")
-	if err != nil {
-		t.Fatal(err)
-	}
+	miner := abi.ActorID(123)
 
 	cfg := &sectorbuilder.Config{
 		SealProofType: sealProofType,
 		PoStProofType: postProofType,
-		Miner:         addr,
 	}
 
 	sp := &fs.Basic{
-		Miner: addr,
-		Root:  cdir,
+		Root: cdir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
@@ -229,13 +207,13 @@ func TestSealAndVerify(t *testing.T) {
 	}
 	defer cleanup()
 
-	si := abi.SectorNumber(1)
+	si := abi.SectorID{Miner: miner, Number: 1}
 
-	s := seal{num: si}
+	s := seal{id: si}
 
 	start := time.Now()
 
-	s.precommit(t, sb, 1, func() {})
+	s.precommit(t, sb, si, func() {})
 
 	precommit := time.Now()
 
@@ -249,7 +227,7 @@ func TestSealAndVerify(t *testing.T) {
 
 	post(t, sb, s)
 
-	if err := sb.FinalizeSector(context.TODO(), 1); err != nil {
+	if err := sb.FinalizeSector(context.TODO(), si); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -272,19 +250,14 @@ func TestSealPoStNoCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addr, err := address.NewFromString("t0123")
-	if err != nil {
-		t.Fatal(err)
-	}
+	miner := abi.ActorID(123)
 
 	cfg := &sectorbuilder.Config{
 		SealProofType: sealProofType,
 		PoStProofType: postProofType,
-		Miner:         addr,
 	}
 	sp := &fs.Basic{
-		Miner: addr,
-		Root:  dir,
+		Root: dir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
@@ -302,17 +275,17 @@ func TestSealPoStNoCommit(t *testing.T) {
 	}
 	defer cleanup()
 
-	si := abi.SectorNumber(1)
+	si := abi.SectorID{Miner: miner, Number: 1}
 
-	s := seal{num: si}
+	s := seal{id: si}
 
 	start := time.Now()
 
-	s.precommit(t, sb, 1, func() {})
+	s.precommit(t, sb, si, func() {})
 
 	precommit := time.Now()
 
-	if err := sb.FinalizeSector(context.TODO(), 1); err != nil {
+	if err := sb.FinalizeSector(context.TODO(), si); err != nil {
 		t.Fatal(err)
 	}
 
@@ -338,19 +311,14 @@ func TestSealAndVerify2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addr, err := address.NewFromString("t0123")
-	if err != nil {
-		t.Fatal(err)
-	}
+	miner := abi.ActorID(123)
 
 	cfg := &sectorbuilder.Config{
 		SealProofType: sealProofType,
 		PoStProofType: postProofType,
-		Miner:         addr,
 	}
 	sp := &fs.Basic{
-		Miner: addr,
-		Root:  dir,
+		Root: dir,
 	}
 	sb, err := sectorbuilder.New(sp, cfg)
 	if err != nil {
@@ -367,16 +335,16 @@ func TestSealAndVerify2(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	si1 := abi.SectorNumber(1)
-	si2 := abi.SectorNumber(2)
+	si1 := abi.SectorID{Miner: miner, Number: 1}
+	si2 := abi.SectorID{Miner: miner, Number: 2}
 
-	s1 := seal{num: si1}
-	s2 := seal{num: si2}
+	s1 := seal{id: si1}
+	s2 := seal{id: si2}
 
 	wg.Add(2)
-	go s1.precommit(t, sb, 1, wg.Done) //nolint: staticcheck
+	go s1.precommit(t, sb, si1, wg.Done) //nolint: staticcheck
 	time.Sleep(100 * time.Millisecond)
-	go s2.precommit(t, sb, 2, wg.Done) //nolint: staticcheck
+	go s2.precommit(t, sb, si2, wg.Done) //nolint: staticcheck
 	wg.Wait()
 
 	wg.Add(2)

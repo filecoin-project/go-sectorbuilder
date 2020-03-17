@@ -24,7 +24,6 @@ func (sb *SectorBuilder) NewSector(ctx context.Context, sector abi.SectorID) err
 	return nil
 }
 
-
 func (sb *SectorBuilder) AddPiece(ctx context.Context, sector abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storage.Data) (abi.PieceInfo, error) {
 	f, werr, err := toReadableFile(file, int64(pieceSize))
 	if err != nil {

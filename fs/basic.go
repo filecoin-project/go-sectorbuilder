@@ -63,9 +63,9 @@ func (b *Basic) AcquireSector(ctx context.Context, id abi.SectorID, existing sec
 
 	return sectorbuilder.SectorPaths{
 		Id:       id,
-		Unsealed: filepath.Join(b.Root, sectorbuilder.FTUnsealed.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id)),
-		Sealed:   filepath.Join(b.Root, sectorbuilder.FTSealed.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id)),
-		Cache:    filepath.Join(b.Root, sectorbuilder.FTCache.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id)),
+		Unsealed: filepath.Join(b.Root, sectorbuilder.FTUnsealed.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id.Number)),
+		Sealed:   filepath.Join(b.Root, sectorbuilder.FTSealed.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id.Number)),
+		Cache:    filepath.Join(b.Root, sectorbuilder.FTCache.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id.Number)),
 	}, done, nil
 }
 

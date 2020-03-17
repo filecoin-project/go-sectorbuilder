@@ -2,12 +2,10 @@ package sectorbuilder
 
 import (
 	"context"
-
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
@@ -18,7 +16,6 @@ var log = logging.Logger("sectorbuilder")
 type Config struct {
 	SealProofType abi.RegisteredProof
 	PoStProofType abi.RegisteredProof
-	Miner         address.Address
 
 	_ struct{} // guard against nameless init
 }
@@ -27,8 +24,6 @@ type SectorBuilder struct {
 	sealProofType abi.RegisteredProof
 	postProofType abi.RegisteredProof
 	ssize         abi.SectorSize // a function of sealProofType and postProofType
-
-	Miner address.Address
 
 	sectors  SectorProvider
 	stopping chan struct{}
@@ -45,8 +40,6 @@ func New(sectors SectorProvider, cfg *Config) (*SectorBuilder, error) {
 		postProofType: cfg.PoStProofType,
 		ssize:         sectorSize,
 
-		Miner: cfg.Miner,
-
 		sectors: sectors,
 
 		stopping: make(chan struct{}),
@@ -55,7 +48,7 @@ func New(sectors SectorProvider, cfg *Config) (*SectorBuilder, error) {
 	return sb, nil
 }
 
-func (sb *SectorBuilder) pubSectorToPriv(ctx context.Context, sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *SectorBuilder) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []abi.SectorInfo, faults []abi.SectorNumber) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
@@ -67,7 +60,7 @@ func (sb *SectorBuilder) pubSectorToPriv(ctx context.Context, sectorInfo []abi.S
 			continue
 		}
 
-		paths, done, err := sb.sectors.AcquireSector(ctx, s.SectorNumber, FTCache|FTSealed, 0, false)
+		paths, done, err := sb.sectors.AcquireSector(ctx, abi.SectorID{Miner: mid, Number: s.SectorNumber}, FTCache|FTSealed, 0, false)
 		if err != nil {
 			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquire sector paths: %w", err)
 		}

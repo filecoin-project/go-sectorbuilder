@@ -5,36 +5,35 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
-	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/go-sectorbuilder"
 )
 
-type Basic struct {
-	Miner address.Address
-	Root  string
+type sectorFile struct {
+	abi.SectorID
+	sectorbuilder.SectorFileType
 }
 
-func (b *Basic) AcquireSector(ctx context.Context, id abi.SectorNumber, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
-	mid, err := address.IDFromAddress(b.Miner)
-	if err != nil {
-		return sectorbuilder.SectorPaths{}, nil, err
-	}
+type Basic struct {
+	Root  string
 
+	lx sync.Mutex
+	waitSector map[sectorFile]<-chan struct{}
+}
+
+func (b *Basic) AcquireSector(ctx context.Context, id abi.SectorID, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
 	os.Mkdir(filepath.Join(b.Root, sectorbuilder.FTUnsealed.String()), 0755)
 	os.Mkdir(filepath.Join(b.Root, sectorbuilder.FTSealed.String()), 0755)
 	os.Mkdir(filepath.Join(b.Root, sectorbuilder.FTCache.String()), 0755)
 
 	return sectorbuilder.SectorPaths{
-		Id: abi.SectorID{
-			Miner:  abi.ActorID(mid),
-			Number: id,
-		},
-		Unsealed: filepath.Join(b.Root, sectorbuilder.FTUnsealed.String(), fmt.Sprintf("s-%s-%d", b.Miner.String(), id)),
-		Sealed:   filepath.Join(b.Root, sectorbuilder.FTSealed.String(), fmt.Sprintf("s-%s-%d", b.Miner.String(), id)),
-		Cache:    filepath.Join(b.Root, sectorbuilder.FTCache.String(), fmt.Sprintf("s-%s-%d", b.Miner.String(), id)),
+		Id: id,
+		Unsealed: filepath.Join(b.Root, sectorbuilder.FTUnsealed.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id)),
+		Sealed:   filepath.Join(b.Root, sectorbuilder.FTSealed.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id)),
+		Cache:    filepath.Join(b.Root, sectorbuilder.FTCache.String(), fmt.Sprintf("s-t0%d-%d", id.Miner, id)),
 	}, func() {}, nil
 }
 

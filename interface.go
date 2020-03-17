@@ -42,23 +42,19 @@ type SectorPaths struct {
 
 type Validator interface {
 	CanCommit(sector SectorPaths) (bool, error)
-	CanProve(sector SectorPaths) error
+	CanProve(sector SectorPaths) (bool, error)
 }
 
 type Sealer interface {
 	storage.Sealer
-
-	// TODO: storage.Storage also has a NewSector which we don't support here
-	AddPiece(ctx context.Context, sector abi.SectorNumber, pieceSizes []abi.UnpaddedPieceSize, newPieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error)
+	storage.Storage
 }
 
 type Basic interface {
-	SectorSize() abi.SectorSize
-
 	storage.Prover
 	Sealer
 
-	ReadPieceFromSealedSector(context.Context, abi.SectorNumber, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (io.ReadCloser, error)
+	ReadPieceFromSealedSector(context.Context, abi.SectorID, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (io.ReadCloser, error)
 }
 
 type UnpaddedByteIndex uint64
@@ -76,5 +72,5 @@ var ErrSectorNotFound = errors.New("sector not found")
 type SectorProvider interface {
 	// * returns ErrSectorNotFound if a requested existing sector doesn't exist
 	// * returns an error when allocate is set, and existing isn't, and the sector exists
-	AcquireSector(ctx context.Context, id abi.SectorNumber, existing SectorFileType, allocate SectorFileType, sealing bool) (SectorPaths, func(), error)
+	AcquireSector(ctx context.Context, id abi.SectorID, existing SectorFileType, allocate SectorFileType, sealing bool) (SectorPaths, func(), error)
 }

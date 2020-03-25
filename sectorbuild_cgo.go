@@ -32,6 +32,19 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, sector abi.SectorID, exis
 
 	var done func()
 	var stagedFile *os.File
+
+	defer func() {
+		if done != nil {
+			done()
+		}
+
+		if stagedFile != nil {
+			if err := stagedFile.Close(); err != nil {
+				log.Errorf("closing staged file: %+v", err)
+			}
+		}
+	}()
+
 	var stagedPath SectorPaths
 	if len(existingPieceSizes) == 0 {
 		stagedPath, done, err = sb.sectors.AcquireSector(ctx, sector, 0, FTUnsealed, true)
@@ -53,15 +66,14 @@ func (sb *SectorBuilder) AddPiece(ctx context.Context, sector abi.SectorID, exis
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("opening sector file: %w", err)
 		}
+
+		if _, err := stagedFile.Seek(0, io.SeekEnd); err != nil {
+			return abi.PieceInfo{}, xerrors.Errorf("seek end: %w", err)
+		}
 	}
-	defer done()
 
 	_, _, pieceCID, err := ffi.WriteWithAlignment(sb.sealProofType, f, pieceSize, stagedFile, existingPieceSizes)
 	if err != nil {
-		return abi.PieceInfo{}, err
-	}
-
-	if err := stagedFile.Close(); err != nil {
 		return abi.PieceInfo{}, err
 	}
 

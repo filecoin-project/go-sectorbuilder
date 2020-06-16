@@ -20,7 +20,7 @@ var log = logging.Logger("sectorbuilder")
 
 var ErrNotFound = errors.New("sector not found")
 var ErrExists = errors.New("sector already exists")
-var ErrNoSuitablePath = errors.New("no suitable path for sector fond")
+var ErrNoSuitablePath = errors.New("no suitable path for sector found")
 
 type DataType string
 

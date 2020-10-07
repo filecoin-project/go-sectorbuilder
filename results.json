@@ -1,0 +1,207 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/fs/fs.go",
+			"code": "os.Mkdir(dir, 0755)",
+			"line": "137",
+			"column": "14"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/fs/migrate.go",
+			"code": "os.MkdirAll(to, 0755)",
+			"line": "65",
+			"column": "13"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "",
+				"URL": ""
+			},
+			"rule_id": "G307",
+			"details": "Deferring unsafe method \"*os.File\" on type \"Close\"",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/workflows.go",
+			"code": "defer stagedSectorFile.Close()",
+			"line": "46",
+			"column": "2"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "",
+				"URL": ""
+			},
+			"rule_id": "G307",
+			"details": "Deferring unsafe method \"*os.File\" on type \"Close\"",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/workflows.go",
+			"code": "defer sealedSectorFile.Close()",
+			"line": "49",
+			"column": "2"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "",
+				"URL": ""
+			},
+			"rule_id": "G307",
+			"details": "Deferring unsafe method \"*os.File\" on type \"Close\"",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/workflows.go",
+			"code": "defer unsealOutputFileA.Close()",
+			"line": "52",
+			"column": "2"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "",
+				"URL": ""
+			},
+			"rule_id": "G307",
+			"details": "Deferring unsafe method \"*os.File\" on type \"Close\"",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/workflows.go",
+			"code": "defer unsealOutputFileB.Close()",
+			"line": "55",
+			"column": "2"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "",
+				"URL": ""
+			},
+			"rule_id": "G307",
+			"details": "Deferring unsafe method \"*os.File\" on type \"Close\"",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/workflows.go",
+			"code": "defer unsealOutputFileC.Close()",
+			"line": "58",
+			"column": "2"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "",
+				"URL": ""
+			},
+			"rule_id": "G307",
+			"details": "Deferring unsafe method \"*os.File\" on type \"Close\"",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/workflows.go",
+			"code": "defer unsealOutputFileD.Close()",
+			"line": "61",
+			"column": "2"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/sectorbuild_cgo.go",
+			"code": "os.OpenFile(string(sealedPath), os.O_RDWR|os.O_CREATE, 0644)",
+			"line": "235",
+			"column": "12"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/sectorbuild_cgo.go",
+			"code": "os.OpenFile(string(stagedPath), os.O_RDWR, 0644)",
+			"line": "53",
+			"column": "21"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/sectorbuild_cgo.go",
+			"code": "os.OpenFile(string(unsealedPath), os.O_RDONLY, 0644)",
+			"line": "122",
+			"column": "12"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/sectorbuild_cgo.go",
+			"code": "os.OpenFile(string(unsealedPath), os.O_RDONLY, 0644)",
+			"line": "147",
+			"column": "12"
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "276",
+				"URL": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/sectorbuild_cgo.go",
+			"code": "os.Mkdir(string(cacheDir), 0755)",
+			"line": "243",
+			"column": "12"
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/Users/storj/dev/leastauthority/filecoin/go-sectorbuilder/extern/filecoin-ffi/cgoleakdetect/runner.go",
+			"code": "os.Setenv(\"RUST_LOG\", \"info\")",
+			"line": "13",
+			"column": "2"
+		}
+	],
+	"Stats": {
+		"files": 18,
+		"lines": 2700,
+		"nosec": 0,
+		"found": 14
+	}
+}

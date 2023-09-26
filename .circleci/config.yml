@@ -2,7 +2,6 @@ version: 2.1
 orbs:
   golang: circleci/go@1.7.3
   go: gotest/tools@0.0.9
-  rust: circleci/rust@1.6.0
 
 executors:
   golang:
@@ -66,7 +65,11 @@ jobs:
   build-all:
     executor: golang
     steps:
-      - rust/install
+      - run:
+          name: Install Rust
+          command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            source "$HOME/.cargo/env"
       - install-deps
       - prepare
       - go/mod-download

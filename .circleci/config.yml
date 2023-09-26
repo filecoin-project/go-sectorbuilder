@@ -2,6 +2,7 @@ version: 2.1
 orbs:
   golang: circleci/go@1.7.3
   go: gotest/tools@0.0.9
+  rust: circleci/rust@1.6.0
 
 executors:
   golang:
@@ -65,10 +66,7 @@ jobs:
   build-all:
     executor: golang
     steps:
-      - run:
-          name: Install Rust
-          command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
+      - rust/install
       - install-deps
       - prepare
       - go/mod-download
@@ -114,7 +112,7 @@ jobs:
   build-macos:
     description: build with Darwin
     macos:
-      xcode: "14.3.1"
+      xcode: "13.4.1"
     resource_class: macos.x86.medium.gen2
     working_directory: ~/go/src/github.com/filecoin-project/go-sectorbuilder
     steps:

@@ -68,8 +68,8 @@ jobs:
       - run:
           name: Install Rust
           command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            source "$HOME/.cargo/env"
+            curl https://sh.rustup.rs -sSf | sh -s -- -yecho '
+            export PATH="$HOME"/.cargo/bin:"$PATH"' >> "$BASH_ENV"
       - install-deps
       - prepare
       - go/mod-download

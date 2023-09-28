@@ -12,6 +12,11 @@ executors:
 commands:
   install-deps:
     steps:
+      - run:
+          name: Install Rust
+          command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            echo 'export PATH="$HOME"/.cargo/bin:"$PATH"' >> "$BASH_ENV"
       - go/install-ssh
       - go/install: {package: git}
   prepare:
@@ -65,13 +70,6 @@ jobs:
   build-all:
     executor: golang
     steps:
-      - run:
-          name: Install Rust
-          command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            echo 'export PATH="$HOME"/.cargo/bin:"$PATH"' >> "$BASH_ENV"
-      - run:
-          command: which cargo
       - install-deps
       - prepare
       - go/mod-download

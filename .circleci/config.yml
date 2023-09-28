@@ -70,6 +70,8 @@ jobs:
           command: |
             curl https://sh.rustup.rs -sSf | sh -s -- -yecho '
             export PATH="$HOME"/.cargo/bin:"$PATH"' >> "$BASH_ENV"
+      - run:
+          command: which cargo
       - install-deps
       - prepare
       - go/mod-download
